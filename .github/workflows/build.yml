@@ -1,0 +1,88 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Version
+        id: v
+        shell: pwsh
+        run: |
+          [xml]$p = Get-Content src/CypressSound/CypressSound.csproj
+          $v = ($p.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Version $v"
+
+      - name: Test
+        run: dotnet test tests/CypressSound.Tests -c Release --logger "console;verbosity=normal"
+
+      - name: Publish
+        run: dotnet publish src/CypressSound -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=true -o publish
+
+      - name: Smoke test (starts and keeps running)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $p = Start-Process publish/CypressSound.exe -ArgumentList "--tray" -PassThru
+          Start-Sleep -Seconds 10
+          if ($p.HasExited) { Write-Host "::warning::The app exited with code $($p.ExitCode)" } else { Write-Host "Still running after 10 s"; Stop-Process -Id $p.Id -Force }
+          $log = Join-Path $env:APPDATA "Cypress Works\Cypress Sound\log.txt"
+          if (Test-Path $log) { Get-Content $log }
+
+      - name: Get Equalizer APO
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force third_party | Out-Null
+          $out = "third_party/EqualizerAPO-x64-1.4.2.exe"
+          $urls = @(
+            "https://downloads.sourceforge.net/project/equalizerapo/1.4.2/EqualizerAPO-x64-1.4.2.exe",
+            "https://sourceforge.net/projects/equalizerapo/files/1.4.2/EqualizerAPO-x64-1.4.2.exe/download"
+          )
+          foreach ($u in $urls) {
+            try { curl.exe -L --fail --retry 3 -A "Mozilla/5.0" -o $out $u; if ((Get-Item $out).Length -gt 1MB) { break } } catch {}
+          }
+          $len = (Get-Item $out).Length
+          Write-Host "Equalizer APO setup: $len bytes"
+          if ($len -lt 1MB) { throw "Equalizer APO download failed" }
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.v.outputs.version }}" installer/CypressSound.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+          Get-Item out/Cypress-Sound-Setup.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cypress-Sound-Setup
+          path: out/Cypress-Sound-Setup.exe
+
+      - name: Release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.v.outputs.version }}"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag out/Cypress-Sound-Setup.exe --clobber
+          } else {
+            gh release create $tag out/Cypress-Sound-Setup.exe --title "Cypress Sound ${{ steps.v.outputs.version }}" --notes-file RELEASE_NOTES.md
+          }

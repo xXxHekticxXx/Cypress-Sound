@@ -1,0 +1,563 @@
+using System.ComponentModel;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
+using CypressSound.Audio;
+using CypressSound.Eq;
+using CypressSound.Services;
+
+namespace CypressSound.Views;
+
+public partial class MainWindow : Window
+{
+    static AudioController A => App.Audio;
+    string? _selected;
+    string? _builtFor;
+    bool _loading;
+    readonly DispatcherTimer _meter = new() { Interval = TimeSpan.FromMilliseconds(60) };
+    Border? _meterBar;
+    TextBlock? _meterText;
+    readonly List<Slider> _bands = new();
+    readonly List<TextBlock> _bandValues = new();
+
+    public MainWindow()
+    {
+        InitializeComponent();
+        VersionText.Text = "v" + Updater.Current.ToString(3);
+        SettingsBtn.Click += (_, _) => new SettingsWindow { Owner = this }.ShowDialog();
+        AddProfileBtn.Click += (_, _) => EditProfile(null);
+        EqPower.Click += (_, _) => { if (Eq != null) { Eq.Enabled = EqPower.IsChecked == true; A.EqChanged(); } };
+        A.Changed += OnChanged;
+        _meter.Tick += (_, _) => UpdateMeter();
+        IsVisibleChanged += (_, _) => { if (IsVisible) _meter.Start(); else _meter.Stop(); };
+        Curve.SizeChanged += (_, _) => DrawCurve();
+        _selected = Settings.Current.LastSelected;
+        OnChanged();
+    }
+
+    AudioDevice? Device => A.Outputs.Concat(A.Inputs).FirstOrDefault(d => d.Id == _selected);
+    DeviceEq? Eq => _selected == null ? null : Settings.EqFor(_selected);
+    bool IsMic => Device?.Flow == DataFlow.Capture;
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (Settings.Current.CloseToTray)
+        {
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+        base.OnClosing(e);
+        ((App)Application.Current).Quit();
+    }
+
+    void OnChanged()
+    {
+        if (Device == null) _selected = A.DefaultOutput ?? A.Outputs.FirstOrDefault()?.Id;
+        BuildDeviceLists();
+        BuildProfiles();
+        BuildBanners();
+        if (_builtFor != _selected) BuildEq();
+        else { EqPower.IsChecked = Eq?.Enabled; DrawCurve(); }
+    }
+
+    void Select(AudioDevice d)
+    {
+        _selected = d.Id;
+        Settings.Current.LastSelected = d.Id;
+        if (d.Flow == DataFlow.Render ? d.Id != A.DefaultOutput : d.Id != A.DefaultInput) A.SwitchTo(d.Id);
+        else OnChanged();
+    }
+
+    // ---------- left column ----------
+
+    void BuildDeviceLists()
+    {
+        Fill(OutputList, A.Outputs, A.DefaultOutput);
+        Fill(InputList, A.Inputs, A.DefaultInput);
+    }
+
+    void Fill(StackPanel list, IReadOnlyList<AudioDevice> devices, string? def)
+    {
+        list.Children.Clear();
+        if (devices.Count == 0) list.Children.Add(Ui.Text("None found", 13, brush: "Muted"));
+        foreach (var d in devices)
+        {
+            var isDef = d.Id == def;
+            var sel = d.Id == _selected;
+            var g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+            g.ColumnDefinitions.Add(new ColumnDefinition());
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            g.Children.Add(Ui.Text(d.Icon, 18));
+            var names = new StackPanel();
+            names.Children.Add(new TextBlock { Text = A.NameOf(d), FontWeight = isDef ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis });
+            var eq = Settings.EqFor(d.Id);
+            var sub = isDef ? "In use" : "";
+            var eqText = !eq.Enabled ? "EQ off" : eq.Edited ? "Custom EQ" : eq.Preset;
+            sub = sub.Length > 0 ? $"{sub}  ·  {eqText}" : eqText;
+            names.Children.Add(new TextBlock { Text = sub, FontSize = 11, Foreground = Ui.B(isDef ? "Green" : "Muted"), TextTrimming = TextTrimming.CharacterEllipsis });
+            Grid.SetColumn(names, 1);
+            g.Children.Add(names);
+            if (d.Flow == DataFlow.Render && Settings.Current.Hotkey.TryGetValue(d.Id, out var n) && Settings.Current.GlobalHotkeys)
+            {
+                var hk = new Border { Background = Ui.B("Bg"), CornerRadius = new CornerRadius(6), Padding = new Thickness(6, 2, 6, 2), VerticalAlignment = VerticalAlignment.Center, Child = Ui.Text($"Ctrl+Alt+{n}", 10, brush: "Muted"), ToolTip = "Switch to this output from anywhere, even in a game" };
+                Grid.SetColumn(hk, 2);
+                g.Children.Add(hk);
+            }
+            var row = new Button
+            {
+                Style = Ui.S("DeviceRow"),
+                Content = g,
+                Background = sel ? Ui.B("Panel") : Brushes.Transparent,
+                BorderBrush = isDef ? Ui.B("Green") : sel ? Ui.B("Line") : Brushes.Transparent,
+                ToolTip = $"{d.Name}\n{d.Adapter}\nClick: use this device and edit its EQ.  Right-click: rename, hide, hotkey.",
+            };
+            var dev = d;
+            row.Click += (_, _) => Select(dev);
+            row.ContextMenu = DeviceMenu(dev);
+            list.Children.Add(row);
+        }
+    }
+
+    ContextMenu DeviceMenu(AudioDevice d)
+    {
+        var m = new ContextMenu();
+        void Add(string text, Action a) { var i = new MenuItem { Header = text }; i.Click += (_, _) => a(); m.Items.Add(i); }
+        Add("Rename…", () =>
+        {
+            var name = TextPrompt.Ask(this, "Rename device", "Name shown in Cypress Sound:", A.NameOf(d));
+            if (name == null) return;
+            if (string.IsNullOrWhiteSpace(name) || name == d.Name) Settings.Current.Nickname.Remove(d.Id);
+            else Settings.Current.Nickname[d.Id] = name.Trim();
+            A.Refresh();
+        });
+        if (d.Flow == DataFlow.Render)
+        {
+            var hk = new MenuItem { Header = "Hotkey" };
+            for (int n = 1; n <= 9; n++)
+            {
+                var num = n;
+                var i = new MenuItem { Header = $"Ctrl+Alt+{n}", IsCheckable = true, IsChecked = Settings.Current.Hotkey.TryGetValue(d.Id, out var cur) && cur == n };
+                i.Click += (_, _) =>
+                {
+                    foreach (var k in Settings.Current.Hotkey.Where(kv => kv.Value == num).Select(kv => kv.Key).ToList()) Settings.Current.Hotkey[k] = 0;
+                    Settings.Current.Hotkey[d.Id] = num;
+                    A.Refresh();
+                };
+                hk.Items.Add(i);
+            }
+            m.Items.Add(hk);
+        }
+        Add("Turn Equalizer APO on for devices…", OpenDeviceSelector);
+        Add("Hide this device", () => { Settings.Current.Hidden.Add(d.Id); A.Refresh(); });
+        return m;
+    }
+
+    void BuildProfiles()
+    {
+        ProfileList.Children.Clear();
+        foreach (var p in Settings.Current.Profiles)
+        {
+            var active = A.ActiveProfile?.Name == p.Name;
+            var dp = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var edit = new Button { Content = "Edit", Padding = new Thickness(10, 4, 10, 4), MinHeight = 28, Margin = new Thickness(6, 0, 0, 0) };
+            var prof = p;
+            edit.Click += (_, _) => EditProfile(prof);
+            DockPanel.SetDock(edit, Dock.Right);
+            dp.Children.Add(edit);
+            var sw = Ui.Switch("", p.Enabled, on => { prof.Enabled = on; A.EqChanged(); });
+            sw.Margin = new Thickness(0);
+            DockPanel.SetDock(sw, Dock.Left);
+            dp.Children.Add(sw);
+            var names = new StackPanel { Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            names.Children.Add(new TextBlock { Text = p.Name, TextTrimming = TextTrimming.CharacterEllipsis });
+            names.Children.Add(new TextBlock
+            {
+                Text = active ? "Running now" : string.Join(", ", p.Programs) + (p.Preset != null ? $" → {p.Preset}" : ""),
+                FontSize = 11, Foreground = Ui.B(active ? "Green" : "Muted"), TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            dp.Children.Add(names);
+            ProfileList.Children.Add(dp);
+        }
+    }
+
+    void EditProfile(AutoProfile? p)
+    {
+        var w = new ProfileWindow(p) { Owner = this };
+        if (w.ShowDialog() != true) return;
+        if (w.Deleted) Settings.Current.Profiles.Remove(p!);
+        else if (p == null) Settings.Current.Profiles.Add(w.Result);
+        A.EqChanged();
+    }
+
+    // ---------- banners ----------
+
+    void BuildBanners()
+    {
+        Banners.Children.Clear();
+        if (App.PendingUpdate is { } u)
+        {
+            var b = Ui.Btn($"Update to {u.Version.ToString(3)}", () => { }, primary: true);
+            b.Click += async (_, _) =>
+            {
+                b.IsEnabled = false;
+                b.Content = "Downloading…";
+                try
+                {
+                    await Updater.InstallAsync(u, new Progress<double>(f => b.Content = $"Downloading {f:P0}"));
+                    ((App)Application.Current).Quit();
+                }
+                catch (Exception ex) { b.IsEnabled = true; b.Content = "Try again"; MessageBox.Show(this, "The update didn't download: " + ex.Message, "Cypress Sound"); }
+            };
+            Banners.Children.Add(Ui.Banner($"A new version of Cypress Sound is ready ({u.Version.ToString(3)}).", "Green", b));
+        }
+        if (A.LastError != null) Banners.Children.Add(Ui.Banner(A.LastError, "Red"));
+        if (!ApoConfig.Installed)
+        {
+            Banners.Children.Add(Ui.Banner("The EQ needs Equalizer APO, the free sound engine Cypress Sound uses. The Cypress Sound installer adds it; run it again, or get it here.", "Warn",
+                Ui.Btn("Get Equalizer APO", () => Ui.Open("https://sourceforge.net/projects/equalizerapo/"), primary: true)));
+            return;
+        }
+        if (!ApoConfig.Ready())
+        {
+            Banners.Children.Add(Ui.Banner("One more step: let Cypress Sound control Equalizer APO. Windows will ask for permission once.", "Warn",
+                Ui.Btn("Finish setup", () =>
+                {
+                    if (Ui.RunAsAdmin(Environment.ProcessPath!, "--setup-apo-config")) A.EqChanged();
+                }, primary: true)));
+        }
+        if (Device is { } d && !ApoConfig.EnabledFor(d))
+        {
+            Banners.Children.Add(Ui.Banner($"The EQ isn't switched on for {A.NameOf(d)} yet. Tick it in the Equalizer APO device list, then restart your computer (Windows only loads it at startup).", "Warn",
+                Ui.Btn("Turn on EQ for this device", OpenDeviceSelector, primary: true)));
+        }
+    }
+
+    void OpenDeviceSelector()
+    {
+        var ip = ApoConfig.InstallPath();
+        if (ip == null) return;
+        Ui.RunAsAdmin(System.IO.Path.Combine(ip, "DeviceSelector.exe"), wait: false);
+    }
+
+    // ---------- EQ ----------
+
+    void BuildEq()
+    {
+        _builtFor = _selected;
+        _loading = true;
+        var d = Device;
+        var eq = Eq;
+        ModeTabs.Children.Clear();
+        PresetChips.Children.Clear();
+        Cards.Children.Clear();
+        EqBody.Content = null;
+        if (d == null || eq == null)
+        {
+            DeviceTitle.Text = "No sound devices found";
+            DeviceSub.Text = "";
+            _loading = false;
+            return;
+        }
+        DeviceTitle.Text = A.NameOf(d);
+        DeviceSub.Text = (d.Adapter.Length > 0 ? d.Adapter + "  ·  " : "") + (IsMic ? "Microphone EQ (for calls and streaming)" : "This EQ loads by itself whenever this output is in use");
+        EqPower.IsChecked = eq.Enabled;
+
+        var mode = Settings.Current.Mode;
+        if (IsMic && mode == "headphone") mode = "graphic";
+        foreach (var (key, label) in new[] { ("graphic", "10-band"), ("parametric", "Parametric"), ("headphone", "Headphone fix") })
+        {
+            if (IsMic && key == "headphone") continue;
+            var k = key;
+            ModeTabs.Children.Add(Ui.Chip(label, mode == key, () => { Settings.Current.Mode = k; BuildEq(); }));
+        }
+
+        if (mode == "graphic") BuildPresets(eq);
+        EqBody.Content = mode switch
+        {
+            "parametric" => BuildParametric(eq),
+            "headphone" => BuildHeadphone(eq),
+            _ => BuildGraphic(eq),
+        };
+        BuildCards(eq);
+        _loading = false;
+        DrawCurve();
+    }
+
+    void BuildPresets(DeviceEq eq)
+    {
+        foreach (var p in Settings.AllPresets(IsMic))
+        {
+            var preset = p;
+            var chip = Ui.Chip(p.Name, !eq.Edited && eq.Preset == p.Name, () => LoadPreset(preset));
+            if (!p.Builtin)
+            {
+                var m = new ContextMenu();
+                var del = new MenuItem { Header = "Delete preset" };
+                del.Click += (_, _) => { Settings.Current.UserPresets.Remove(preset); BuildEq(); A.EqChanged(); };
+                m.Items.Add(del);
+                chip.ContextMenu = m;
+            }
+            PresetChips.Children.Add(chip);
+        }
+        PresetChips.Children.Add(Ui.Btn("+ Save as…", () =>
+        {
+            var name = TextPrompt.Ask(this, "Save preset", "Name for this EQ:", eq.Edited ? "My EQ" : eq.Preset + " (mine)");
+            if (string.IsNullOrWhiteSpace(name)) return;
+            Settings.Current.UserPresets.RemoveAll(x => x.Name == name && x.ForMic == IsMic);
+            Settings.Current.UserPresets.Add(new Preset { Name = name.Trim(), Bands = (double[])eq.Bands.Clone(), BassBoost = eq.BassBoost, NightMode = eq.NightMode, ForMic = IsMic });
+            eq.Preset = name.Trim();
+            eq.Edited = false;
+            BuildEq();
+            A.EqChanged();
+        }));
+    }
+
+    void LoadPreset(Preset p)
+    {
+        var eq = Eq!;
+        eq.Bands = (double[])p.Bands.Clone();
+        eq.Preset = p.Name;
+        eq.Edited = false;
+        eq.Enabled = true;
+        if (!IsMic) { eq.NightMode = p.NightMode; eq.BassBoost = p.BassBoost; }
+        BuildEq();
+        A.EqChanged();
+    }
+
+    UIElement BuildGraphic(DeviceEq eq)
+    {
+        _bands.Clear();
+        _bandValues.Clear();
+        var g = new UniformGrid { Rows = 1, Columns = 10, Height = 250 };
+        for (int i = 0; i < 10; i++)
+        {
+            var idx = i;
+            var col = new DockPanel();
+            var val = Ui.Text(Fmt(eq.Bands[i]), 12, true);
+            val.HorizontalAlignment = HorizontalAlignment.Center;
+            DockPanel.SetDock(val, Dock.Top);
+            var lab = Ui.Text(DeviceEq.BandLabel[i], 12, brush: "Muted");
+            lab.HorizontalAlignment = HorizontalAlignment.Center;
+            DockPanel.SetDock(lab, Dock.Bottom);
+            var s = new Slider { Style = Ui.S("BandSlider"), Value = eq.Bands[i], HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 6, 0, 6), ToolTip = $"{DeviceEq.BandLabel[i]} Hz. Double-click to reset." };
+            s.ValueChanged += (_, e) =>
+            {
+                if (_loading) return;
+                eq.Bands[idx] = e.NewValue;
+                eq.Edited = true;
+                val.Text = Fmt(e.NewValue);
+                foreach (var c in PresetChips.Children.OfType<ToggleButton>()) c.IsChecked = false;
+                A.EqChanged();
+            };
+            s.MouseDoubleClick += (_, _) => s.Value = 0;
+            col.Children.Add(val);
+            col.Children.Add(lab);
+            col.Children.Add(s);
+            g.Children.Add(col);
+            _bands.Add(s);
+            _bandValues.Add(val);
+        }
+        return g;
+    }
+
+    static string Fmt(double db) => (db > 0 ? "+" : "") + db.ToString("0.#", CultureInfo.InvariantCulture);
+
+    UIElement BuildParametric(DeviceEq eq)
+    {
+        var sp = new StackPanel();
+        sp.Children.Add(Ui.Text("Exact filters, the same kind AutoEq and Equalizer APO use. They add on top of the 10-band EQ.", 12, brush: "Muted"));
+        var header = Row(new[] { "On", "Type", "Frequency (Hz)", "Gain (dB)", "Q", "" }, true);
+        header.Margin = new Thickness(0, 10, 0, 4);
+        sp.Children.Add(header);
+        foreach (var f in eq.Parametric.ToList())
+        {
+            var flt = f;
+            var on = new CheckBox { IsChecked = f.On, VerticalAlignment = VerticalAlignment.Center };
+            on.Click += (_, _) => { flt.On = on.IsChecked == true; A.EqChanged(); };
+            var type = new ComboBox { ItemsSource = new[] { "PK", "LS", "HS", "LP", "HP" }, SelectedItem = f.Type is "LSC" ? "LS" : f.Type is "HSC" ? "HS" : f.Type, Width = 80, ToolTip = "PK = peak, LS = low shelf, HS = high shelf, LP = low pass, HP = high pass" };
+            type.SelectionChanged += (_, _) => { flt.Type = (string)type.SelectedItem; A.EqChanged(); };
+            var fc = Num(f.Fc, 20, 20000, v => flt.Fc = v);
+            var gain = Num(f.Gain, -24, 24, v => flt.Gain = v);
+            var q = Num(f.Q, 0.1, 20, v => flt.Q = v);
+            var del = new Button { Content = "✕", Padding = new Thickness(10, 2, 10, 2), MinHeight = 28, Margin = new Thickness(0) };
+            del.Click += (_, _) => { eq.Parametric.Remove(flt); BuildEq(); A.EqChanged(); };
+            sp.Children.Add(Row(new UIElement[] { on, type, fc, gain, q, del }));
+        }
+        var add = Ui.Btn("+ Add filter", () => { eq.Parametric.Add(new EqFilter { Type = "PK", Fc = 1000, Gain = 0, Q = 1 }); BuildEq(); });
+        add.HorizontalAlignment = HorizontalAlignment.Left;
+        add.Margin = new Thickness(0, 10, 0, 0);
+        sp.Children.Add(add);
+        return sp;
+    }
+
+    TextBox Num(double v, double min, double max, Action<double> set)
+    {
+        var t = new TextBox { Text = v.ToString("0.##", CultureInfo.InvariantCulture), Width = 100 };
+        t.LostFocus += (_, _) => Commit();
+        t.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Commit(); };
+        void Commit()
+        {
+            if (double.TryParse(t.Text.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var x))
+            {
+                x = Math.Clamp(x, min, max);
+                t.Text = x.ToString("0.##", CultureInfo.InvariantCulture);
+                set(x);
+                A.EqChanged();
+            }
+        }
+        return t;
+    }
+
+    static Grid Row(IEnumerable<object> cells, bool header = false)
+    {
+        var g = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+        foreach (var w in new[] { 50, 100, 130, 130, 130, 60 }) g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(w) });
+        int i = 0;
+        foreach (var c in cells)
+        {
+            var e = c as UIElement ?? Ui.Text((string)c, 12, header, "Muted");
+            Grid.SetColumn(e, i++);
+            if (e is FrameworkElement fe) { fe.HorizontalAlignment = HorizontalAlignment.Left; fe.VerticalAlignment = VerticalAlignment.Center; }
+            g.Children.Add(e);
+        }
+        return g;
+    }
+
+    UIElement BuildHeadphone(DeviceEq eq)
+    {
+        var sp = new StackPanel();
+        var all = HeadphoneLibrary.All;
+        sp.Children.Add(Ui.Text($"Pick your headphones or earbuds and Cypress Sound corrects them toward a neutral, studio-like sound, using the AutoEq measurements ({all.Count:N0} models). Your 10-band EQ still works on top.", 13, wrap: 760));
+        var current = Ui.Text(eq.Headphone == null ? "None selected" : "Using: " + eq.Headphone, 14, true, eq.Headphone == null ? "Muted" : "Green");
+        current.Margin = new Thickness(0, 10, 0, 6);
+        sp.Children.Add(current);
+        var dp = new DockPanel();
+        var clear = Ui.Btn("Turn off", () => { eq.Headphone = null; BuildEq(); A.EqChanged(); });
+        clear.IsEnabled = eq.Headphone != null;
+        DockPanel.SetDock(clear, Dock.Right);
+        dp.Children.Add(clear);
+        var box = new TextBox { Margin = new Thickness(0, 0, 8, 8), ToolTip = "Type a brand or model, e.g. Sony WH-1000XM4, AirPods, HD 600" };
+        dp.Children.Add(box);
+        sp.Children.Add(dp);
+        var list = new ListBox { Height = 230, Background = Ui.B("Bg2"), Foreground = Ui.B("Ink"), BorderBrush = Ui.B("Line") };
+        void Search()
+        {
+            list.ItemsSource = (box.Text.Trim().Length == 0 ? all.Take(0) : HeadphoneLibrary.Search(box.Text)).Take(80).ToList();
+        }
+        box.TextChanged += (_, _) => Search();
+        list.MouseDoubleClick += (_, _) => Pick();
+        list.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Pick(); };
+        void Pick()
+        {
+            if (list.SelectedItem is not HeadphoneProfile p) return;
+            eq.Headphone = p.ToString();
+            eq.Enabled = true;
+            BuildEq();
+            A.EqChanged();
+        }
+        sp.Children.Add(list);
+        var use = Ui.Btn("Use selected", Pick, primary: true);
+        use.HorizontalAlignment = HorizontalAlignment.Left;
+        use.Margin = new Thickness(0, 8, 0, 0);
+        sp.Children.Add(use);
+        if (all.Count == 0) sp.Children.Add(Ui.Text("The headphone list is missing from this copy of the app. Reinstall Cypress Sound to get it.", 12, brush: "Warn"));
+        Dispatcher.BeginInvoke(() => box.Focus(), DispatcherPriority.Input);
+        return sp;
+    }
+
+    void BuildCards(DeviceEq eq)
+    {
+        // Preamp + clip guard
+        var preLabel = Ui.Text("", 22, true);
+        var clipNote = Ui.Text("", 11, brush: "Muted", wrap: 260);
+        void PreText()
+        {
+            var hp = eq.Headphone == null ? null : HeadphoneLibrary.Find(eq.Headphone);
+            var boost = Math.Max(0, Response.MaxBoost(eq, hp?.Filters));
+            preLabel.Text = Fmt(eq.Preamp) + " dB";
+            clipNote.Text = eq.ClipGuard && boost > 0.05 ? $"Clip guard is lowering the level {boost:0.#} dB so boosts never distort." : "No distortion risk with this EQ.";
+        }
+        PreText();
+        var preSlider = Ui.Slider(-20, 10, eq.Preamp, 0.5, v => { if (_loading) return; eq.Preamp = v; PreText(); A.EqChanged(); });
+        var clip = Ui.Switch("Clip guard", eq.ClipGuard, on => { eq.ClipGuard = on; PreText(); A.EqChanged(); });
+        _preText = PreText;
+        Cards.Children.Add(Ui.Card("VOLUME (PREAMP)", preLabel, preSlider, clip, clipNote));
+
+        if (!IsMic)
+        {
+            // Night mode
+            var strength = Ui.Slider(0, 1, eq.NightStrength, 0.05, v => { if (_loading) return; eq.NightStrength = v; A.EqChanged(); });
+            strength.IsEnabled = eq.NightMode;
+            var night = Ui.Switch("Night mode", eq.NightMode, on => { eq.NightMode = on; strength.IsEnabled = on; A.EqChanged(); });
+            Cards.Children.Add(Ui.Card("NIGHT MODE", night, Ui.Text("Clearer dialogue, softer explosions and bass, so you can keep the volume low.", 11, brush: "Muted", wrap: 260), strength));
+
+            // Bass boost
+            var bassLabel = Ui.Text(eq.BassBoost <= 0 ? "Off" : $"+{eq.BassBoost:0.#} dB", 22, true);
+            var bass = Ui.Slider(0, 12, eq.BassBoost, 0.5, v => { if (_loading) return; eq.BassBoost = v; bassLabel.Text = v <= 0 ? "Off" : $"+{v:0.#} dB"; A.EqChanged(); });
+            Cards.Children.Add(Ui.Card("BASS BOOST", bassLabel, bass, Ui.Text("Deep, clean low end below 80 Hz.", 11, brush: "Muted")));
+
+            // Mono + balance
+            var balLabel = Ui.Text(BalText(eq.Balance), 13);
+            var bal = Ui.Slider(-1, 1, eq.Balance, 0.05, v => { if (_loading) return; eq.Balance = v; balLabel.Text = BalText(v); A.EqChanged(); });
+            bal.MouseDoubleClick += (_, _) => bal.Value = 0;
+            var mono = Ui.Switch("Mono (both ears hear everything)", eq.Mono, on => { eq.Mono = on; A.EqChanged(); });
+            Cards.Children.Add(Ui.Card("LEFT / RIGHT", mono, balLabel, bal));
+        }
+
+        // Level meter + device volume
+        _meterBar = new Border { Height = 10, CornerRadius = new CornerRadius(5), Background = Ui.B("Green"), HorizontalAlignment = HorizontalAlignment.Left, Width = 0 };
+        _meterText = Ui.Text("", 11, brush: "Muted");
+        var track = new Border { Height = 10, CornerRadius = new CornerRadius(5), Background = Ui.B("Line"), Margin = new Thickness(0, 10, 0, 6), Child = _meterBar };
+        var id = _selected!;
+        var vol = Ui.Slider(0, 100, Math.Round(A.Devices.DeviceVolume(id) * 100), 1, v => A.Devices.SetDeviceVolume(id, (float)(v / 100)));
+        Cards.Children.Add(Ui.Card(IsMic ? "MIC LEVEL" : "OUTPUT LEVEL", track, _meterText, Ui.Text("Device volume", 11, brush: "Muted"), vol));
+    }
+
+    Action? _preText;
+
+    static string BalText(double b) => Math.Abs(b) < 0.03 ? "Balance: centered" : b < 0 ? $"Balance: {(-b):P0} left" : $"Balance: {b:P0} right";
+
+    void UpdateMeter()
+    {
+        if (_meterBar == null || _selected == null || _meterBar.Parent is not Border track) return;
+        var p = A.Devices.Peak(_selected);
+        var w = track.ActualWidth * Math.Clamp(p, 0, 1);
+        _meterBar.Width = Math.Max(0, w * 0.6 + _meterBar.Width * 0.4);
+        _meterBar.Background = Ui.B(p > 0.98 ? "Red" : p > 0.85 ? "Warn" : "Green");
+        _meterText!.Text = p <= 0.0001 ? "Silent" : $"{20 * Math.Log10(p):0} dB";
+    }
+
+    void DrawCurve()
+    {
+        _preText?.Invoke();
+        Curve.Children.Clear();
+        var eq = Eq;
+        double w = Curve.ActualWidth, h = Curve.ActualHeight;
+        if (eq == null || w < 10) return;
+        double X(double f) => w * Math.Log(f / 20) / Math.Log(1000);
+        double Y(double db) => h / 2 - db / 15 * (h / 2);
+        foreach (var f in new double[] { 50, 100, 200, 500, 1000, 2000, 5000, 10000 })
+            Curve.Children.Add(new Line { X1 = X(f), X2 = X(f), Y1 = 0, Y2 = h, Stroke = Ui.B("Line"), StrokeThickness = 1 });
+        foreach (var db in new double[] { -12, -6, 0, 6, 12 })
+            Curve.Children.Add(new Line { X1 = 0, X2 = w, Y1 = Y(db), Y2 = Y(db), Stroke = Ui.B("Line"), StrokeThickness = db == 0 ? 1.5 : 0.7 });
+        var hp = eq.Headphone == null || IsMic ? null : HeadphoneLibrary.Find(eq.Headphone);
+        var line = new Polyline { Stroke = Ui.B(eq.Enabled ? "Green" : "Muted"), StrokeThickness = 2.5 };
+        for (int i = 0; i <= 120; i++)
+        {
+            var f = 20 * Math.Pow(1000, i / 120.0);
+            var db = eq.Enabled ? Response.TotalDb(eq, hp?.Filters, f) : 0;
+            line.Points.Add(new Point(X(f), Math.Clamp(Y(db), 1, h - 1)));
+        }
+        Curve.Children.Add(line);
+        var cap = Ui.Text(eq.Enabled ? "What you'll hear (before volume)" : "EQ is off: sound plays unchanged", 11, brush: "Muted");
+        Canvas.SetLeft(cap, 4);
+        Canvas.SetTop(cap, 2);
+        Curve.Children.Add(cap);
+    }
+}
