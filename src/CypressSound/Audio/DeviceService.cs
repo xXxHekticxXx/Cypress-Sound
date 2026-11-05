@@ -163,7 +163,7 @@ public sealed class DeviceService : IMMNotificationClient, IDisposable
                 };
                 var tone = new NAudio.Wave.SampleProviders.PanningSampleProvider(
                     new NAudio.Wave.SampleProviders.OffsetSampleProvider(gen) { TakeSamples = (int)(48000 * 1.4) }) { Pan = pan };
-                output.Init(tone);
+                output.Init(new NAudio.Wave.SampleProviders.SampleToWaveProvider(tone));
                 output.Play();
                 while (output.PlaybackState == NAudio.Wave.PlaybackState.Playing) Thread.Sleep(50);
             });
