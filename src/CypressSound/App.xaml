@@ -75,8 +75,8 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="b" Property="Background" Value="{StaticResource Ink}"/>
-                <Setter TargetName="c" Property="TextElement.Foreground" Value="#111"/>
-                <Setter TargetName="c" Property="TextElement.FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="#111"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
               </Trigger>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Green}"/></Trigger>
             </ControlTemplate.Triggers>
