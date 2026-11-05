@@ -39,12 +39,26 @@ public partial class MainWindow : Window
         if (AudioController.Demo)
         {
             WindowState = WindowState.Maximized;
-            var e = Settings.EqFor(A.Outputs[0].Id);
-            e.Bands = new double[] { 5, 4, 3, 1, 0, -1, 1, 3, 4, 2 };
-            e.Preset = "Custom";
-            e.Edited = true;
-            e.BassBoost = 3;
-            e.NightMode = true;
+            var e = Settings.EqFor(A.Outputs[1].Id);
+            e.Bands = new double[] { 2, 2, 1, 0, 0, 1, 3, 3, 1, 0 };
+            e.Preset = "Sound bar: clear dialogue";
+            e.Edited = false;
+            e.SoundBar = true;
+            e.SbSub = 4;
+            e.SbVoice = 2;
+            e.SbSurround = 0.6;
+            e.Boost = true;
+            e.BoostDb = 6;
+            Settings.Current.SoundBarOpen = true;
+            _selected = A.Outputs[1].Id;
+            A.SwitchTo(A.Outputs[1].Id);
+            var shot = Environment.GetCommandLineArgs().SkipWhile(a => a != "--shot").Skip(1).FirstOrDefault();
+            if (shot != null)
+            {
+                var t = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+                t.Tick += (_, _) => { t.Stop(); SavePanel(shot); };
+                t.Start();
+            }
         }
         OnChanged();
     }
@@ -266,6 +280,7 @@ public partial class MainWindow : Window
         ModeTabs.Children.Clear();
         PresetChips.Children.Clear();
         Cards.Children.Clear();
+        SoundBarHost.Children.Clear();
         EqBody.Content = null;
         if (d == null || eq == null)
         {
@@ -295,6 +310,7 @@ public partial class MainWindow : Window
             _ => BuildGraphic(eq),
         };
         BuildCards(eq);
+        BuildSoundBar(eq);
         _loading = false;
         DrawCurve();
     }
@@ -527,6 +543,129 @@ public partial class MainWindow : Window
         var id = _selected!;
         var vol = Ui.Slider(0, 100, Math.Round(A.Devices.DeviceVolume(id) * 100), 1, v => A.Devices.SetDeviceVolume(id, (float)(v / 100)));
         Cards.Children.Add(Ui.Card(IsMic ? "MIC LEVEL" : "OUTPUT LEVEL", track, _meterText, Ui.Text("Device volume", 11, brush: "Muted"), vol));
+
+        if (!IsMic)
+        {
+            var boostLabel = Ui.Text(eq.Boost ? $"+{eq.BoostDb:0.#} dB" : "Off", 22, true);
+            var boostSlider = Ui.Slider(0, 12, eq.BoostDb, 0.5, v =>
+            {
+                if (_loading) return;
+                eq.BoostDb = v;
+                if (v > 0 && !eq.Boost) { eq.Boost = true; _boostSwitch!.IsChecked = true; }
+                boostLabel.Text = eq.Boost ? $"+{v:0.#} dB" : "Off";
+                A.EqChanged();
+            });
+            _boostSwitch = Ui.Switch("Boost", eq.Boost, on => { eq.Boost = on; boostLabel.Text = on ? $"+{eq.BoostDb:0.#} dB" : "Off"; A.EqChanged(); });
+            Cards.Children.Add(Ui.Card("VOLUME BOOST", boostLabel, boostSlider, _boostSwitch,
+                Ui.Text("Louder than Windows' 100%. Up to +12 dB.", 11, brush: "Muted", wrap: 260),
+                Ui.Text("Very loud parts can crackle at high boost. +3 to +6 dB is the sweet spot.", 11, brush: "Warn", wrap: 260)));
+        }
+    }
+
+    CheckBox? _boostSwitch;
+
+    // ---------- sound bar ----------
+
+    void BuildSoundBar(DeviceEq eq)
+    {
+        SoundBarHost.Children.Clear();
+        if (IsMic || Device is not { } d) return;
+        var open = Settings.Current.SoundBarOpen || eq.SoundBar;
+        var header = new Button { Style = Ui.S("DeviceRow"), Background = Ui.B("Panel"), BorderBrush = eq.SoundBar ? Ui.B("Green") : Ui.B("Line"), Margin = new Thickness(0, 0, 0, 12) };
+        var hdr = new DockPanel();
+        var arrow = Ui.Text(Settings.Current.SoundBarOpen ? "▴" : "▾", 16, brush: "Muted");
+        DockPanel.SetDock(arrow, Dock.Right);
+        hdr.Children.Add(arrow);
+        hdr.Children.Add(Ui.Text("🔈  Sound bar setup" + (eq.SoundBar ? "  ·  on" : ""), 15, true, eq.SoundBar ? "Green" : null));
+        header.Content = hdr;
+        header.Click += (_, _) => { Settings.Current.SoundBarOpen = !Settings.Current.SoundBarOpen; A.EqChanged(); BuildSoundBar(eq); };
+        SoundBarHost.Children.Add(header);
+        if (!Settings.Current.SoundBarOpen) return;
+
+        var multi = d.Channels >= 6;
+        var body = new StackPanel();
+        body.Children.Add(Ui.Switch($"{A.NameOf(d)} plays through a sound bar", eq.SoundBar, on => { eq.SoundBar = on; A.EqChanged(); BuildSoundBar(eq); DrawCurve(); }));
+        body.Children.Add(Ui.Text(multi
+            ? $"Windows sends {d.Channels} channels here, so each speaker gets its own level."
+            : "Windows sends 2 channels here (normal for a sound bar on HDMI ARC or the optical cable). The sound bar builds its center, sub and rear sound from them; these sliders steer how much goes to each.",
+            12, brush: "Muted", wrap: 820));
+
+        var grid = new UniformGrid { Columns = 3, Margin = new Thickness(0, 10, 0, 0), IsEnabled = eq.SoundBar };
+        UIElement Level(string title, string note, double min, double max, double value, Func<double, string> fmt, Action<double> set)
+        {
+            var sp = new StackPanel { Margin = new Thickness(0, 0, 20, 0) };
+            var top = new DockPanel();
+            var val = Ui.Text(fmt(value), 14, true);
+            DockPanel.SetDock(val, Dock.Right);
+            top.Children.Add(val);
+            top.Children.Add(Ui.Text(title));
+            sp.Children.Add(top);
+            var s = Ui.Slider(min, max, value, 0.5, v => { if (_loading) return; set(v); val.Text = fmt(v); A.EqChanged(); });
+            s.MouseDoubleClick += (_, _) => s.Value = 0;
+            sp.Children.Add(s);
+            sp.Children.Add(Ui.Text(note, 11, brush: "Muted", wrap: 260));
+            return sp;
+        }
+        static string Db(double v) => Math.Abs(v) < 0.05 ? "0 dB" : (v > 0 ? "+" : "") + v.ToString("0.#", CultureInfo.InvariantCulture) + " dB";
+        grid.Children.Add(Level("Subwoofer", multi ? "Level of the sub channel" : "Deep bass below 90 Hz, which is what your sub plays", -6, 10, eq.SbSub, Db, v => eq.SbSub = v));
+        if (multi)
+            grid.Children.Add(Level("Rear speakers", "Level of the rear channels", -10, 10, eq.SbRear, Db, v => eq.SbRear = v));
+        else
+            grid.Children.Add(Level("Rear speakers (surround)", "Wider stereo gives the bar's Surround mode more to send to the rears", 0, 10, eq.SbSurround * 10, v => v < 0.05 ? "Off" : $"{v:0}/10", v => eq.SbSurround = v / 10));
+        grid.Children.Add(Level("Center (voices)", "Clearer dialogue in movies and TV", -6, 8, eq.SbVoice, Db, v => eq.SbVoice = v));
+        body.Children.Add(grid);
+
+        if (multi)
+        {
+            var fill = Ui.Switch("Fill rear speakers and sub from stereo (YouTube, music, older games)", eq.SbFill, on => { eq.SbFill = on; A.EqChanged(); });
+            fill.IsEnabled = eq.SoundBar;
+            body.Children.Add(fill);
+        }
+
+        var testRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
+        var testNow = Ui.Text("", 13, true, "Green");
+        testNow.VerticalAlignment = VerticalAlignment.Center;
+        var test = Ui.Btn("▶  Test speakers", () => { });
+        var id = d.Id;
+        test.Click += async (_, _) =>
+        {
+            test.IsEnabled = false;
+            try { await A.Devices.TestSpeakers(id, s => testNow.Text = s.Length > 0 ? "Playing: " + s : ""); }
+            catch (Exception ex) { testNow.Text = "Couldn't play the test: " + ex.Message; }
+            test.IsEnabled = true;
+        };
+        testRow.Children.Add(test);
+        testRow.Children.Add(testNow);
+        body.Children.Add(testRow);
+
+        if (!multi)
+            body.Children.Add(Ui.Text("For the rears and sub to play PC sound, set the sound bar to Surround mode with its remote (Sound Mode → Surround). " +
+                "The exact sub and rear levels can also be set on the remote or in the SmartThings app; these sliders add to that.", 12, brush: "Warn", wrap: 820));
+
+        SoundBarHost.Children.Add(new Border { Background = Ui.B("Panel"), CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 12, 16, 14), Margin = new Thickness(0, -6, 0, 12), Child = body });
+    }
+
+    void SavePanel(string path)
+    {
+        try
+        {
+            RightPanel.UpdateLayout();
+            double w = RightPanel.ActualWidth, h = RightPanel.ActualHeight;
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen())
+            {
+                dc.DrawRectangle(Ui.B("Bg"), null, new Rect(0, 0, w, h));
+                dc.DrawRectangle(new VisualBrush(RightPanel), null, new Rect(0, 0, w, h));
+            }
+            var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap((int)w, (int)h, 96, 96, PixelFormats.Pbgra32);
+            bmp.Render(dv);
+            var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bmp));
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!);
+            using var f = System.IO.File.Create(path);
+            enc.Save(f);
+        }
+        catch (Exception e) { App.Log("shot: " + e); }
     }
 
     Action? _preText;

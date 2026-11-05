@@ -66,6 +66,7 @@ public sealed class AudioController : IDisposable
             DefaultOutput = Devices.DefaultId(DataFlow.Render);
             DefaultInput = Devices.DefaultId(DataFlow.Capture);
         }
+        foreach (var d in Outputs.Concat(Inputs)) Settings.EqFor(d.Id).Channels = d.Channels;
         // hotkeys: give new outputs the next free number
         foreach (var d in Outputs)
         {

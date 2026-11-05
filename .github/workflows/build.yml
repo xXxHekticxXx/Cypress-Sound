@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          $p = Start-Process publish/CypressSound.exe -ArgumentList "--demo" -PassThru
+          $p = Start-Process publish/CypressSound.exe -ArgumentList "--demo","--shot","shots/panel.png" -PassThru
           Start-Sleep -Seconds 12
           Add-Type -AssemblyName System.Windows.Forms,System.Drawing
           $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -68,9 +68,11 @@ jobs:
         run: |
           git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
           Copy-Item shots/main.png $env:RUNNER_TEMP/main.png
+          if (Test-Path shots/panel.png) { Copy-Item shots/panel.png $env:RUNNER_TEMP/panel.png }
           git checkout --orphan screenshots
           git rm -rf --cached . | Out-Null
           Copy-Item $env:RUNNER_TEMP/main.png main.png
+          if (Test-Path $env:RUNNER_TEMP/panel.png) { Copy-Item $env:RUNNER_TEMP/panel.png panel.png; git add panel.png }
           git add main.png
           git commit -m "Screenshot of ${{ github.sha }}"
           git push -f origin screenshots

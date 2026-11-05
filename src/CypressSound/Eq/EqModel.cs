@@ -32,6 +32,22 @@ public sealed class DeviceEq
     public bool Mono { get; set; }
     public double Balance { get; set; }               // -1 (left) .. 1 (right)
 
+    // Volume boost: louder than Windows' 100%.
+    public bool Boost { get; set; }
+    public double BoostDb { get; set; } = 6;           // 0..12
+
+    // Sound bar setup. Over HDMI ARC / optical the PC only sends 2 channels, so the bar makes its own
+    // center, sub and rear sound from them; these settings steer how much goes to each.
+    public bool SoundBar { get; set; }
+    public double SbSub { get; set; }                  // dB, -6..10: deep bass (what the subwoofer plays)
+    public double SbVoice { get; set; }                // dB, -6..8: voice band (what the center plays)
+    public double SbSurround { get; set; }             // 0..1: stereo width (what the bar's surround mode sends to the rears)
+    public double SbRear { get; set; }                 // dB, -10..10: rear level, only when Windows sends real 5.1/7.1
+    public bool SbFill { get; set; } = true;           // 5.1/7.1 only: send stereo to center, sub and rears
+
+    /// <summary>Channels Windows sends to this device right now (2 over HDMI ARC/optical). Not saved.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public int Channels { get; set; } = 2;
+
     public DeviceEq Clone()
     {
         var c = (DeviceEq)MemberwiseClone();
@@ -63,6 +79,8 @@ public static class Presets
         P("TV speakers fix", 4, 4, 3, 1, 0, 1, 3, 3, 1, 0),
         P("Music: V-shape", 5, 4, 2, 0, -2, -2, 0, 2, 4, 5),
         P("Treble boost", 0, 0, 0, 0, 0, 1, 2, 4, 5, 5),
+        P("Sound bar: clear dialogue", -2, -1, -1, 0, 1, 3, 4, 3, 1, 0),
+        P("Sound bar: music", 3, 3, 1, 0, -1, 0, 1, 2, 3, 3),
         P("Laptop speakers", -8, -6, -2, 1, 2, 2, 3, 2, 1, 0),
         P("Mic: clear voice", -12, -10, -4, -1, 0, 1, 3, 3, 1, -2, mic: true),
         P("Mic: deep radio voice", -10, -3, 3, 2, 0, -1, 2, 3, 1, -3, mic: true),
@@ -138,6 +156,12 @@ public static class Response
     public static IEnumerable<EqFilter> ExtraFilters(DeviceEq eq)
     {
         if (eq.BassBoost > 0.05) yield return new EqFilter { Type = "LS", Fc = 80, Gain = eq.BassBoost, Q = 0.71 };
+        if (eq.SoundBar && eq.Channels < 6)
+        {
+            // Sound bars split stereo themselves: deep bass goes to the sub, the voice band to the center.
+            if (Math.Abs(eq.SbSub) > 0.05) yield return new EqFilter { Type = "LS", Fc = 90, Gain = eq.SbSub, Q = 0.71 };
+            if (Math.Abs(eq.SbVoice) > 0.05) yield return new EqFilter { Type = "PK", Fc = 2200, Gain = eq.SbVoice, Q = 0.8 };
+        }
         if (eq.NightMode)
         {
             // Night mode: lift dialogue, tame the deepest bass and the harshest highs.

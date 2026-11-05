@@ -35,7 +35,7 @@
 
     <!-- right: EQ for the selected device -->
     <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-      <StackPanel Margin="24,16,24,24">
+      <StackPanel x:Name="RightPanel" Margin="24,16,24,24">
         <StackPanel x:Name="Banners"/>
         <Grid Margin="0,4,0,8">
           <StackPanel>
@@ -55,7 +55,8 @@
           </StackPanel>
         </Border>
 
-        <UniformGrid x:Name="Cards" Columns="3" Margin="0,12,0,0"/>
+        <StackPanel x:Name="SoundBarHost" Margin="0,12,0,0"/>
+        <UniformGrid x:Name="Cards" Columns="3" Margin="0,0,0,0"/>
       </StackPanel>
     </ScrollViewer>
   </Grid>

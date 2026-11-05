@@ -78,6 +78,7 @@ sealed class TrayFlyout : Window
             toggles.Children.Add(Ui.Chip("EQ", eq.Enabled, () => { eq.Enabled = !eq.Enabled; A.EqChanged(); }));
             toggles.Children.Add(Ui.Chip("🌙 Night", eq.NightMode, () => { eq.NightMode = !eq.NightMode; A.EqChanged(); }));
             toggles.Children.Add(Ui.Chip("Mono", eq.Mono, () => { eq.Mono = !eq.Mono; A.EqChanged(); }));
+            toggles.Children.Add(Ui.Chip($"🔊 Boost +{eq.BoostDb:0}", eq.Boost, () => { eq.Boost = !eq.Boost; A.EqChanged(); }));
             _body.Children.Add(toggles);
             var preset = new ComboBox { Margin = new Thickness(0, 2, 0, 0) };
             foreach (var p in Settings.AllPresets(false)) preset.Items.Add(p.Name);

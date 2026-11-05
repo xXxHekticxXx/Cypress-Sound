@@ -31,6 +31,7 @@ public sealed class AppSettings
     public bool GlobalHotkeys { get; set; } = true;
     public string Mode { get; set; } = "graphic"; // graphic | parametric | headphone
     public string? LastSelected { get; set; }
+    public bool SoundBarOpen { get; set; }
 }
 
 public static class Settings

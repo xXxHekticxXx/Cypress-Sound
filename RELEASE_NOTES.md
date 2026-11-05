@@ -6,3 +6,7 @@ Download **Cypress-Sound-Setup.exe** below and run it.
 - Per-app volume and per-app output from the tray icon.
 - Auto profiles: a preset (and output) switches on while a game or player is running.
 - Mic EQ for calls and streaming.
+
+**1.0.1**
+- Volume boost: up to +12 dB louder than Windows' 100% (main window and tray).
+- Sound bar setup (under the EQ): subwoofer, rear surround and center/voice levels, a speaker test, and two sound bar presets.

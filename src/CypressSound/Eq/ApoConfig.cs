@@ -125,6 +125,10 @@ public static class ApoConfig
                 var boost = Response.MaxBoost(eq, hp?.Filters) + eq.Preamp + (hp?.Preamp ?? 0);
                 if (boost > 0) pre -= boost;
             }
+            var multi = eq.SoundBar && eq.Channels >= 6;
+            var width = eq.SoundBar && !multi ? Math.Clamp(eq.SbSurround, 0, 1) * 0.5 : 0;
+            if (width > 0.005) pre -= 20 * Math.Log10(1 + width); // wider stereo is a little louder
+            if (eq.Boost) pre += Math.Clamp(eq.BoostDb, 0, 12);
             if (Math.Abs(pre) > 0.005) sb.Append("Preamp: ").Append(N(pre)).Append(" dB\r\n");
             if (eq.Bands.Any(b => Math.Abs(b) > 0.005))
             {
@@ -142,6 +146,27 @@ public static class ApoConfig
                 sb.Append(" Q ").Append(N(f.Q)).Append("\r\n");
             }
             if (eq.Mono) sb.Append("Copy: L=0.5*L+0.5*R R=0.5*L+0.5*R\r\n");
+            if (width > 0.005)
+            {
+                // More left/right difference, which a sound bar's surround mode sends to the rear speakers.
+                sb.Append("Copy: L=").Append(N(1 + width)).Append("*L+").Append(N(-width)).Append("*R R=")
+                  .Append(N(1 + width)).Append("*R+").Append(N(-width)).Append("*L\r\n");
+            }
+            if (multi)
+            {
+                var rears = eq.Channels >= 8 ? "RL RR SL SR" : "SL SR";
+                if (eq.SbFill)
+                {
+                    sb.Append("Copy: C=0.5*L+0.5*R SUB=0.5*L+0.5*R ")
+                      .Append(eq.Channels >= 8 ? "RL=L RR=R SL=L SR=R" : "SL=L SR=R").Append("\r\n");
+                    sb.Append("Channel: SUB\r\nFilter: ON LPQ Fc 100 Hz Q 0.71\r\n");
+                    sb.Append("Channel: C\r\nFilter: ON HPQ Fc 120 Hz Q 0.71\r\n");
+                }
+                if (Math.Abs(eq.SbSub) > 0.05) sb.Append("Channel: SUB\r\nPreamp: ").Append(N(eq.SbSub)).Append(" dB\r\n");
+                if (Math.Abs(eq.SbVoice) > 0.05) sb.Append("Channel: C\r\nPreamp: ").Append(N(eq.SbVoice)).Append(" dB\r\n");
+                if (Math.Abs(eq.SbRear) > 0.05) sb.Append("Channel: ").Append(rears).Append("\r\nPreamp: ").Append(N(eq.SbRear)).Append(" dB\r\n");
+                sb.Append("Channel: all\r\n");
+            }
             if (Math.Abs(eq.Balance) > 0.01)
             {
                 // pan by turning the other side down (up to -30 dB at full balance)

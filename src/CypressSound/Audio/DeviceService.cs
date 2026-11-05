@@ -8,6 +8,9 @@ namespace CypressSound.Audio;
 
 public sealed record AudioDevice(string Id, string Name, string Adapter, DataFlow Flow, string Icon)
 {
+    /// <summary>Channels Windows mixes for this device (2 = stereo, 6 = 5.1, 8 = 7.1).</summary>
+    public int Channels { get; init; } = 2;
+
     /// <summary>The endpoint GUID, which is how Equalizer APO's "Device:" lines and its registry keys name a device.</summary>
     public string Guid => Id.Contains("}.{") ? Id[(Id.IndexOf("}.{", StringComparison.Ordinal) + 2)..] : Id;
 }
@@ -39,7 +42,9 @@ public sealed class DeviceService : IMMNotificationClient, IDisposable
                 var name = d.FriendlyName;
                 string adapter = "";
                 try { adapter = d.DeviceFriendlyName; } catch { }
-                list.Add(new AudioDevice(d.ID, ShortName(name, adapter), adapter, flow, IconFor(name, flow)));
+                int ch = 2;
+                try { ch = d.AudioClient.MixFormat.Channels; } catch { }
+                list.Add(new AudioDevice(d.ID, ShortName(name, adapter), adapter, flow, IconFor(name, flow)) { Channels = ch });
             }
             finally { d.Dispose(); }
         }
@@ -136,6 +141,35 @@ public sealed class DeviceService : IMMNotificationClient, IDisposable
             finally { d.Dispose(); }
         }
         return byPid.Values.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Plays a short tone on the left, the right, the middle (center speaker) and a deep one for the sub.</summary>
+    public async Task TestSpeakers(string deviceId, Action<string> step)
+    {
+        var tones = new (string Label, double Hz, float Pan)[]
+        {
+            ("Left", 440, -1f), ("Right", 440, 1f), ("Center (voices)", 660, 0f), ("Subwoofer", 50, 0f),
+        };
+        foreach (var (label, hz, pan) in tones)
+        {
+            step(label);
+            await Task.Run(() =>
+            {
+                using var dev = _en.GetDevice(deviceId);
+                using var output = new NAudio.Wave.WasapiOut(dev, AudioClientShareMode.Shared, true, 100);
+                var gen = new NAudio.Wave.SampleProviders.SignalGenerator(48000, 1)
+                {
+                    Frequency = hz, Gain = hz < 100 ? 0.5 : 0.18, Type = NAudio.Wave.SampleProviders.SignalGeneratorType.Sin,
+                };
+                var tone = new NAudio.Wave.SampleProviders.PanningSampleProvider(
+                    new NAudio.Wave.SampleProviders.OffsetSampleProvider(gen) { TakeSamples = (int)(48000 * 1.4) }) { Pan = pan };
+                output.Init(tone);
+                output.Play();
+                while (output.PlaybackState == NAudio.Wave.PlaybackState.Playing) Thread.Sleep(50);
+            });
+            await Task.Delay(300);
+        }
+        step("");
     }
 
     public void SetAppVolume(uint pid, float volume)

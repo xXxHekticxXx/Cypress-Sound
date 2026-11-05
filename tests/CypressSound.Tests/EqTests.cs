@@ -55,6 +55,35 @@ public class EqTests
     }
 
     [Fact]
+    public void Volume_boost_raises_the_preamp()
+    {
+        var eq = new DeviceEq { Boost = true, BoostDb = 6 };
+        Assert.Contains("Preamp: 6 dB", ApoConfig.Build(new[] { (Dev(), eq) }, _ => null));
+    }
+
+    [Fact]
+    public void Sound_bar_on_stereo_steers_sub_voice_and_surround()
+    {
+        var eq = new DeviceEq { SoundBar = true, SbSub = 4, SbVoice = 2, SbSurround = 0.6, ClipGuard = false, Channels = 2 };
+        var text = ApoConfig.Build(new[] { (Dev("LG TV"), eq) }, _ => null);
+        Assert.Contains("Filter: ON LSC Fc 90 Hz Gain 4 dB", text);
+        Assert.Contains("Filter: ON PK Fc 2200 Hz Gain 2 dB", text);
+        Assert.Contains("Copy: L=1.3*L+-0.3*R R=1.3*R+-0.3*L", text);
+        Assert.DoesNotContain("Channel: SUB", text);
+    }
+
+    [Fact]
+    public void Sound_bar_on_5_1_sets_channel_levels()
+    {
+        var eq = new DeviceEq { SoundBar = true, SbSub = 4, SbRear = 3, Channels = 6 };
+        var text = ApoConfig.Build(new[] { (Dev("Soundbar"), eq) }, _ => null);
+        Assert.Contains("Copy: C=0.5*L+0.5*R SUB=0.5*L+0.5*R SL=L SR=R", text);
+        Assert.Contains("Channel: SUB\r\nPreamp: 4 dB", text);
+        Assert.Contains("Channel: SL SR\r\nPreamp: 3 dB", text);
+        Assert.DoesNotContain("LSC Fc 90", text);
+    }
+
+    [Fact]
     public void Peak_filter_has_its_gain_at_the_center()
     {
         var f = new EqFilter { Type = "PK", Fc = 1000, Gain = 6, Q = 1 };
