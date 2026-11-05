@@ -61,11 +61,20 @@ jobs:
           $log = Join-Path $env:APPDATA "Cypress Works\Cypress Sound\log.txt"
           if (Test-Path $log) { Get-Content $log }
 
-      - uses: actions/upload-artifact@v4
+      - name: Save screenshot to the screenshots branch
+        if: github.event_name != 'pull_request'
+        shell: pwsh
         continue-on-error: true
-        with:
-          name: screenshots
-          path: shots/
+        run: |
+          git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
+          Copy-Item shots/main.png $env:RUNNER_TEMP/main.png
+          git checkout --orphan screenshots
+          git rm -rf --cached . | Out-Null
+          Copy-Item $env:RUNNER_TEMP/main.png main.png
+          git add main.png
+          git commit -m "Screenshot of ${{ github.sha }}"
+          git push -f origin screenshots
+          git checkout -f ${{ github.sha }}
 
       - name: Build installer
         shell: pwsh
