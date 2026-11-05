@@ -132,7 +132,7 @@ public static class ApoConfig
                 sb.Append(string.Join("; ", DeviceEq.BandHz.Select((hz, i) => $"{N(hz)} {N(eq.Bands[i])}")));
                 sb.Append("\r\n");
             }
-            foreach (var f in eq.Parametric.Concat(Response.ExtraFilters(eq)).Concat(hp?.Filters ?? Array.Empty<EqFilter>()))
+            foreach (var f in eq.Parametric.Concat(Response.ExtraFilters(eq)).Concat((IEnumerable<EqFilter>?)hp?.Filters ?? Array.Empty<EqFilter>()))
             {
                 if (!f.On) continue;
                 // Equalizer APO: plain LS/HS/LP/HP have a fixed slope, the C/Q variants take a Q.

@@ -26,6 +26,7 @@
     <!-- WinForms and WPF both define these names; the app uses the WPF ones unless it says otherwise. -->
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+    <Using Include="System.IO" />
   </ItemGroup>
 
   <ItemGroup>
