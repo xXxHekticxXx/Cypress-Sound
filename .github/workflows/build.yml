@@ -44,25 +44,6 @@ jobs:
           $log = Join-Path $env:APPDATA "Cypress Works\Cypress Sound\log.txt"
           if (Test-Path $log) { Get-Content $log }
 
-      - name: Get Equalizer APO
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force third_party | Out-Null
-          $out = "third_party/EqualizerAPO-x64-1.4.2.exe"
-          if (Test-Path "installer/EqualizerAPO-x64-1.4.2.exe") { Copy-Item "installer/EqualizerAPO-x64-1.4.2.exe" $out }
-          $path = "project/equalizerapo/1.4.2/EqualizerAPO-x64-1.4.2.exe"
-          $hosts = "master.dl.sourceforge.net","netix.dl.sourceforge.net","phoenixnap.dl.sourceforge.net","altushost-swe.dl.sourceforge.net","freefr.dl.sourceforge.net","kumisystems.dl.sourceforge.net","sitsa.dl.sourceforge.net","cfhcable.dl.sourceforge.net","yer.dl.sourceforge.net","deac-ams.dl.sourceforge.net"
-          $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-          foreach ($h in $hosts) {
-            if ((Test-Path $out) -and (Get-Item $out).Length -gt 1MB) { break }
-            Write-Host "Trying $h"
-            curl.exe -sS -L --fail -A $ua -o $out "https://$h/$path`?viasf=1"
-          }
-          if (-not (Test-Path $out) -or (Get-Item $out).Length -lt 1MB) { throw "Equalizer APO download failed" }
-          $sig = Get-AuthenticodeSignature $out
-          Write-Host "Equalizer APO setup: $((Get-Item $out).Length) bytes, signature: $($sig.Status) $($sig.SignerCertificate.Subject)"
-          (Get-FileHash $out -Algorithm SHA256).Hash
-
       - name: Build installer
         shell: pwsh
         run: |

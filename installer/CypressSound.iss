@@ -35,14 +35,13 @@ Name: "desktopicon"; Description: "Desktop shortcut"; GroupDescription: "Shortcu
 
 [Files]
 Source: "..\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\third_party\{#ApoSetup}"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsApo
 
 [Icons]
 Name: "{autoprograms}\Cypress Sound"; Filename: "{app}\CypressSound.exe"
 Name: "{autodesktop}\Cypress Sound"; Filename: "{app}\CypressSound.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\{#ApoSetup}"; Parameters: "/S"; StatusMsg: "Installing the sound engine (Equalizer APO). In the window that opens, tick your speakers, TV and headphones, then click OK."; Flags: waituntilterminated; Check: NeedsApo
+Filename: "{tmp}\{#ApoSetup}"; Parameters: "/S"; StatusMsg: "Installing the sound engine (Equalizer APO). In the window that opens, tick your speakers, TV and headphones, then click OK."; Flags: waituntilterminated; Check: ApoDownloaded
 Filename: "{app}\CypressSound.exe"; Parameters: "--setup-apo-config"; StatusMsg: "Connecting Cypress Sound to the sound engine..."; Flags: waituntilterminated runhidden
 Filename: "{app}\CypressSound.exe"; Description: "Start Cypress Sound"; Flags: nowait postinstall runasoriginaluser
 
@@ -55,6 +54,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Code]
 var
   ApoWasMissing: Boolean;
+  ApoFetched: Boolean;
+  DownloadPage: TDownloadWizardPage;
 
 function ApoInstalled(): Boolean;
 begin
@@ -66,10 +67,52 @@ begin
   Result := not ApoInstalled();
 end;
 
+function ApoDownloaded(): Boolean;
+begin
+  Result := ApoFetched;
+end;
+
 function InitializeSetup(): Boolean;
 begin
   ApoWasMissing := not ApoInstalled();
   Result := True;
+end;
+
+procedure InitializeWizard;
+begin
+  DownloadPage := CreateDownloadPage('Getting the sound engine', 'Downloading Equalizer APO (free), which runs the EQ inside Windows.', nil);
+end;
+
+function TryDownload(Url: String): Boolean;
+begin
+  DownloadPage.Clear;
+  DownloadPage.Add(Url, '{#ApoSetup}', '');
+  DownloadPage.Show;
+  try
+    try
+      DownloadPage.Download;
+      Result := True;
+    except
+      Log(GetExceptionMessage);
+      Result := False;
+    end;
+  finally
+    DownloadPage.Hide;
+  end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpReady) and NeedsApo() and not ApoFetched then
+  begin
+    ApoFetched := TryDownload('https://downloads.sourceforge.net/project/equalizerapo/1.4.2/{#ApoSetup}');
+    if not ApoFetched then
+      ApoFetched := TryDownload('https://sourceforge.net/projects/equalizerapo/files/1.4.2/{#ApoSetup}/download');
+    if not ApoFetched then
+      MsgBox('Equalizer APO could not be downloaded (are you online?). Cypress Sound will still install and switch outputs; ' +
+             'the EQ starts working once you install Equalizer APO from sourceforge.net/projects/equalizerapo.', mbInformation, MB_OK);
+  end;
 end;
 
 function NeedRestart(): Boolean;
