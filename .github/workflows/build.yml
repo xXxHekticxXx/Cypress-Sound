@@ -48,7 +48,7 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
-          $p = Start-Process publish/CypressSound.exe -PassThru
+          $p = Start-Process publish/CypressSound.exe -ArgumentList "--demo" -PassThru
           Start-Sleep -Seconds 12
           Add-Type -AssemblyName System.Windows.Forms,System.Drawing
           $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds

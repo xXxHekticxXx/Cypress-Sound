@@ -16,7 +16,7 @@ public partial class MainWindow : Window
 {
     static AudioController A => App.Audio;
     string? _selected;
-    string? _builtFor;
+    string? _builtFor = "\0"; // nothing built yet
     bool _loading;
     readonly DispatcherTimer _meter = new() { Interval = TimeSpan.FromMilliseconds(60) };
     Border? _meterBar;
@@ -36,6 +36,16 @@ public partial class MainWindow : Window
         IsVisibleChanged += (_, _) => { if (IsVisible) _meter.Start(); else _meter.Stop(); };
         Curve.SizeChanged += (_, _) => DrawCurve();
         _selected = Settings.Current.LastSelected;
+        if (AudioController.Demo)
+        {
+            WindowState = WindowState.Maximized;
+            var e = Settings.EqFor(A.Outputs[0].Id);
+            e.Bands = new double[] { 5, 4, 3, 1, 0, -1, 1, 3, 4, 2 };
+            e.Preset = "Custom";
+            e.Edited = true;
+            e.BassBoost = 3;
+            e.NightMode = true;
+        }
         OnChanged();
     }
 

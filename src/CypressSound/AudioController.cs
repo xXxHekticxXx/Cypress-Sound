@@ -35,13 +35,37 @@ public sealed class AudioController : IDisposable
         Refresh();
     }
 
+    /// <summary>--demo: made-up devices, for screenshots on machines without sound hardware.</summary>
+    public static readonly bool Demo = Environment.GetCommandLineArgs().Contains("--demo");
+    string? _demoOut, _demoIn;
+    static readonly AudioDevice[] DemoOutputs =
+    {
+        new("{0.0.0.00000000}.{d0000000-0000-0000-0000-000000000001}", "Headphones", "Realtek(R) Audio", DataFlow.Render, "🎧"),
+        new("{0.0.0.00000000}.{d0000000-0000-0000-0000-000000000002}", "LG TV SSCR2", "NVIDIA High Definition Audio", DataFlow.Render, "📺"),
+        new("{0.0.0.00000000}.{d0000000-0000-0000-0000-000000000003}", "Speakers", "Realtek(R) Audio", DataFlow.Render, "🔊"),
+    };
+    static readonly AudioDevice[] DemoInputs =
+    {
+        new("{0.0.1.00000000}.{d0000000-0000-0000-0000-000000000004}", "Microphone", "Blue Yeti", DataFlow.Capture, "🎙"),
+    };
+
     public void Refresh()
     {
         var hidden = Settings.Current.Hidden;
-        Outputs = Devices.Devices(DataFlow.Render).Where(d => !hidden.Contains(d.Id)).ToList();
-        Inputs = Devices.Devices(DataFlow.Capture).Where(d => !hidden.Contains(d.Id)).ToList();
-        DefaultOutput = Devices.DefaultId(DataFlow.Render);
-        DefaultInput = Devices.DefaultId(DataFlow.Capture);
+        if (Demo)
+        {
+            Outputs = DemoOutputs;
+            Inputs = DemoInputs;
+            DefaultOutput = _demoOut ??= DemoOutputs[0].Id;
+            DefaultInput = _demoIn ??= DemoInputs[0].Id;
+        }
+        else
+        {
+            Outputs = Devices.Devices(DataFlow.Render).Where(d => !hidden.Contains(d.Id)).ToList();
+            Inputs = Devices.Devices(DataFlow.Capture).Where(d => !hidden.Contains(d.Id)).ToList();
+            DefaultOutput = Devices.DefaultId(DataFlow.Render);
+            DefaultInput = Devices.DefaultId(DataFlow.Capture);
+        }
         // hotkeys: give new outputs the next free number
         foreach (var d in Outputs)
         {
@@ -60,7 +84,11 @@ public sealed class AudioController : IDisposable
     {
         try
         {
-            WindowsAudio.SetDefault(deviceId);
+            if (Demo)
+            {
+                if (DemoInputs.Any(i => i.Id == deviceId)) _demoIn = deviceId; else _demoOut = deviceId;
+            }
+            else WindowsAudio.SetDefault(deviceId);
             var d = Outputs.Concat(Inputs).FirstOrDefault(x => x.Id == deviceId);
             if (announce && d != null) Notice?.Invoke($"{d.Icon}  {NameOf(d)}");
             LastError = null;
