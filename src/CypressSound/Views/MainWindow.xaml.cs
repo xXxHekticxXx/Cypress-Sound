@@ -532,7 +532,7 @@ public partial class MainWindow : Window
             var balLabel = Ui.Text(BalText(eq.Balance), 13);
             var bal = Ui.Slider(-1, 1, eq.Balance, 0.05, v => { if (_loading) return; eq.Balance = v; balLabel.Text = BalText(v); A.EqChanged(); });
             bal.MouseDoubleClick += (_, _) => bal.Value = 0;
-            var mono = Ui.Switch("Mono (both ears hear everything)", eq.Mono, on => { eq.Mono = on; A.EqChanged(); });
+            var mono = Ui.Switch("Mono", eq.Mono, on => { eq.Mono = on; A.EqChanged(); });
             Cards.Children.Add(Ui.Card("LEFT / RIGHT", mono, balLabel, bal));
         }
 
