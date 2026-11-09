@@ -35,8 +35,12 @@ public static class Theme
         Set("Ink", p.Ink); Set("Muted", p.Muted);
         Set("Green", p.Accent); Set("GreenDark", p.AccentDark); // accent colour (key names kept from the first version)
         Set("Track", p.Track); Set("Hover", p.Hover);
+        Set("Knob", p.Dark ? p.Ink : "#FFFFFF");
         foreach (Window w in Application.Current.Windows) TitleBar(w);
+        Changed?.Invoke(); // parts built in code redraw with the new colours
     }
+
+    public static event Action? Changed;
 
     [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 

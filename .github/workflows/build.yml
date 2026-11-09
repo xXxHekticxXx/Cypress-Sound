@@ -58,6 +58,15 @@ jobs:
           New-Item -ItemType Directory -Force shots | Out-Null
           $bmp.Save("shots/main.png")
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          # switching to Light while the app is open (everything must redraw in the new colours)
+          $q = Start-Process publish/CypressSound.exe -ArgumentList "--demo","--switch-theme","Light" -PassThru
+          Start-Sleep -Seconds 10
+          $bmp3 = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g3 = [System.Drawing.Graphics]::FromImage($bmp3)
+          $g3.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp3.Save("shots/theme-live-Light.png")
+          Stop-Process -Id $q.Id -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
           # every colour theme with a drop-down list open, to check the text can be read
           foreach ($t in @("Midnight","Graphite","Light","Cypress green")) {
             $q = Start-Process publish/CypressSound.exe -ArgumentList "--demo","--theme","`"$t`"","--open-dropdown" -PassThru

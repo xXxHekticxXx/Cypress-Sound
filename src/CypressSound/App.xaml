@@ -15,6 +15,7 @@
     <SolidColorBrush x:Key="Red" Color="#D0453B"/>
     <SolidColorBrush x:Key="Track" Color="#2B313C"/>
     <SolidColorBrush x:Key="Hover" Color="#1D222B"/>
+    <SolidColorBrush x:Key="Knob" Color="#EEF1F6"/>
 
     <Style TargetType="TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource Ink}"/>
@@ -132,7 +133,7 @@
                   <Thumb Width="26" Height="26" Cursor="SizeNS">
                     <Thumb.Template>
                       <ControlTemplate TargetType="Thumb">
-                        <Ellipse Fill="{DynamicResource Ink}" Stroke="{DynamicResource Green}" StrokeThickness="3"/>
+                        <Ellipse Fill="{DynamicResource Knob}" Stroke="{DynamicResource Green}" StrokeThickness="3"/>
                       </ControlTemplate>
                     </Thumb.Template>
                   </Thumb>
@@ -169,7 +170,7 @@
                 <Track.Thumb>
                   <Thumb Width="18" Height="18">
                     <Thumb.Template>
-                      <ControlTemplate TargetType="Thumb"><Ellipse Fill="{DynamicResource Ink}"/></ControlTemplate>
+                      <ControlTemplate TargetType="Thumb"><Ellipse Fill="{DynamicResource Knob}" Stroke="{DynamicResource Line}" StrokeThickness="1"/></ControlTemplate>
                     </Thumb.Template>
                   </Thumb>
                 </Track.Thumb>

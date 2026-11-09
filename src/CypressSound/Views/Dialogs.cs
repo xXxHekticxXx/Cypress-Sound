@@ -167,8 +167,8 @@ sealed class SettingsWindow : DarkDialog
             if (theme.SelectedItem is not string n) return;
             s.Theme = n;
             Theme.Apply(n);
+            Background = Ui.B("Bg");
             a.EqChanged();
-            restart.Visibility = Visibility.Visible;
         };
         Body.Children.Add(theme);
         Body.Children.Add(restart);

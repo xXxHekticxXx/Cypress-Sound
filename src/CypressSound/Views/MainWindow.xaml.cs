@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Theme.TitleBar(this);
+        Theme.Changed += () => { _builtFor = "\0"; OnChanged(); };
         SideCol.Width = new GridLength(Math.Clamp(Settings.Current.SidebarWidth, 220, 640));
         SideSplit.DragCompleted += (_, _) => { Settings.Current.SidebarWidth = SideCol.ActualWidth; A.EqChanged(); };
         VersionText.Text = "v" + Updater.Current.ToString(3);
@@ -55,6 +56,14 @@ public partial class MainWindow : Window
             Settings.Current.SoundBarOpen = true;
             _selected = A.Outputs[1].Id;
             A.SwitchTo(A.Outputs[1].Id);
+            var live = Environment.GetCommandLineArgs().SkipWhile(a => a != "--switch-theme").Skip(1).FirstOrDefault();
+            if (live != null)
+            {
+                // screenshot check: change theme while the window is open, like picking it in Settings
+                var tl = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+                tl.Tick += (_, _) => { tl.Stop(); Theme.Apply(live); };
+                tl.Start();
+            }
             if (Environment.GetCommandLineArgs().Contains("--open-dropdown"))
             {
                 // screenshot check: open the auto-profile editor with its output list dropped down
