@@ -41,7 +41,9 @@ public partial class App : Application
             ex.Handled = true;
         };
 
-        Theme.Apply(Settings.Current.Theme);
+        // --theme NAME: show a theme without saving it (used for the build's screenshots)
+        var themeArg = e.Args.SkipWhile(a => a != "--theme").Skip(1).FirstOrDefault();
+        Theme.Apply(themeArg ?? Settings.Current.Theme);
         Audio = new AudioController();
         Hotkeys = new Hotkeys();
         Hotkeys.Output += n => Audio.SwitchToHotkey(n);

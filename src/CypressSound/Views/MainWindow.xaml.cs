@@ -55,6 +55,28 @@ public partial class MainWindow : Window
             Settings.Current.SoundBarOpen = true;
             _selected = A.Outputs[1].Id;
             A.SwitchTo(A.Outputs[1].Id);
+            if (Environment.GetCommandLineArgs().Contains("--open-dropdown"))
+            {
+                // screenshot check: open the auto-profile editor with its output list dropped down
+                var t0 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+                t0.Tick += (_, _) =>
+                {
+                    t0.Stop();
+                    var w = new ProfileWindow(Settings.Current.Profiles.Last()) { Owner = this, WindowStartupLocation = WindowStartupLocation.CenterScreen };
+                    w.Show();
+                    var t1 = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                    t1.Tick += (_, _) =>
+                    {
+                        t1.Stop();
+                        var combos = new List<ComboBox>();
+                        void Walk(object o) { if (o is ComboBox c) combos.Add(c); if (o is DependencyObject dobj) foreach (var ch in LogicalTreeHelper.GetChildren(dobj)) Walk(ch); }
+                        Walk(w);
+                        if (combos.Count > 1) combos[1].IsDropDownOpen = true;
+                    };
+                    t1.Start();
+                };
+                t0.Start();
+            }
             var shot = Environment.GetCommandLineArgs().SkipWhile(a => a != "--shot").Skip(1).FirstOrDefault();
             if (shot != null)
             {
@@ -88,7 +110,8 @@ public partial class MainWindow : Window
         BuildDeviceLists();
         BuildProfiles();
         BuildBanners();
-        if (_builtFor != _selected) BuildEq();
+        // rebuild the sliders when a profile switched on or off and moved the EQ underneath them
+        if (_builtFor != _selected || A.ProfileStamp != _eqStamp) { _eqStamp = A.ProfileStamp; BuildEq(); }
         else { EqPower.IsChecked = Eq?.Enabled; DrawCurve(); }
     }
 
@@ -197,15 +220,15 @@ public partial class MainWindow : Window
             edit.Click += (_, _) => EditProfile(prof);
             DockPanel.SetDock(edit, Dock.Right);
             dp.Children.Add(edit);
-            // hear it now without starting the game
-            var testing = A.Testing == p;
-            var test = new Button { Content = testing ? "Stop" : "Test", Padding = new Thickness(10, 4, 10, 4), MinHeight = 28, Margin = new Thickness(6, 0, 0, 0),
-                ToolTip = "Turn this profile on right now so you can hear it (no game needed). Press Stop to go back." };
-            if (testing) test.Style = Ui.S("Primary");
-            test.Click += (_, _) => A.TestProfile(A.Testing == prof ? null : prof);
-            DockPanel.SetDock(test, Dock.Right);
-            dp.Children.Add(test);
-            var sw = Ui.Switch("", p.Enabled, on => { prof.Enabled = on; A.EqChanged(); });
+            // the switch turns the profile on right now (the EQ moves to its tuning) and it also comes on by itself
+            // whenever one of its programs starts; off puts your own EQ back
+            var sw = Ui.Switch("", active || p.Enabled && A.Testing == p, on =>
+            {
+                prof.Enabled = on;
+                if (on) A.TestProfile(prof);
+                else if (A.Testing == prof || A.ActiveProfile == prof) A.TestProfile(null);
+                else A.EqChanged();
+            });
             sw.Margin = new Thickness(0);
             DockPanel.SetDock(sw, Dock.Left);
             dp.Children.Add(sw);
@@ -231,13 +254,13 @@ public partial class MainWindow : Window
 
     string ProfileStatus(AutoProfile p, bool active)
     {
-        if (active) return A.Testing == p ? "Testing: on now" : "Running now";
+        if (active) return A.Testing == p ? "On now · " + (A.EffectiveEq(A.Outputs.FirstOrDefault(o => o.Id == (p.OutputId ?? A.DefaultOutput)) ?? A.Outputs[0]).Preset) : "Running now";
         if (ProfileDeaf(p))
         {
             var target = A.Outputs.First(o => o.Id == (p.OutputId ?? A.DefaultOutput));
             return $"⚠ Can't be heard: EQ isn't on for {A.NameOf(target)} (see the yellow banner)";
         }
-        if (p.Enabled) return "On · starts by itself when " + (p.Programs.FirstOrDefault() ?? "the program") + " opens";
+        if (p.Enabled) return "Ready · comes on by itself when " + (p.Programs.FirstOrDefault() ?? "the program") + " opens";
         return string.Join(", ", p.Programs) + (p.HeadphonePreset != null ? " → speakers + 🎧 tunings" : p.Preset != null ? $" → {p.Preset}" : "");
     }
 
@@ -289,8 +312,8 @@ public partial class MainWindow : Window
         if (A.ActiveProfile is { } ap && Device is { } dv && dv.Flow == DataFlow.Render && (ap.OutputId ?? A.DefaultOutput) == dv.Id)
         {
             var used = A.EffectiveEq(dv).Preset;
-            var stop = A.Testing != null ? new[] { Ui.Btn("Stop test", () => A.TestProfile(null), primary: true) } : Array.Empty<Button>();
-            Banners.Children.Add(Ui.Banner($"🎮 {ap.Name} is on for this output: using \"{used}\". The curve shows it; your own sliders come back when it ends." +
+            var stop = A.Testing != null ? new[] { Ui.Btn("Turn off", () => { ap.Enabled = false; A.TestProfile(null); }, primary: true) } : Array.Empty<Button>();
+            Banners.Children.Add(Ui.Banner($"🎮 {ap.Name} is on: the EQ below is set to \"{used}\". Your own EQ comes back when you turn it off." +
                 (ApoConfig.EnabledFor(dv) ? "" : " You won't hear it until the EQ is switched on for this device (below)."), "Green", stop));
         }
         if (Device is { } d && !ApoConfig.EnabledFor(d))
@@ -308,6 +331,8 @@ public partial class MainWindow : Window
     }
 
     // ---------- EQ ----------
+
+    int _eqStamp = -1;
 
     void BuildEq()
     {

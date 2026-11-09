@@ -35,6 +35,11 @@ public sealed class AppSettings
     public string? LastSelected { get; set; }
     public bool SoundBarOpen { get; set; }
     public bool CodProfileAdded { get; set; }
+    /// <summary>Profile switched on by hand (stays on until switched off, also after a restart).</summary>
+    public string? ManualProfile { get; set; }
+    /// <summary>Your own EQ for the output a profile is changing right now (put back when it ends).</summary>
+    public string? ProfileBackupDevice { get; set; }
+    public DeviceEq? ProfileBackup { get; set; }
     public double SidebarWidth { get; set; } = 320;
     public string Theme { get; set; } = "Midnight";
 }
@@ -58,7 +63,13 @@ public static class Settings
                 if (!s.CodProfileAdded) { if (!s.Profiles.Any(p => p.Name == "Call of Duty")) s.Profiles.Add(CodProfile()); s.CodProfileAdded = true; }
                 // 1.0.6: the Call of Duty profile gets separate MW4 tunings for headphones and for TV/speakers
                 foreach (var p in s.Profiles.Where(p => p.Name == "Call of Duty" && p.Preset == "Call of Duty"))
-                { p.Preset = "MW4 · TV & speakers"; p.HeadphonePreset = "MW4 · Headphones"; }
+                { p.Preset = "Call of Duty · TV & speakers"; p.HeadphonePreset = "Call of Duty · Headphones"; }
+                foreach (var e in s.Eq.Values.Where(e => e.Preset == "Call of Duty")) e.Preset = "Call of Duty · TV & speakers";
+                // 1.0.8: the MW4 tunings were renamed to show up as Call of Duty on the EQ preset buttons
+                static string? Ren(string? n) => n?.Replace("MW4 · ", "Call of Duty · ");
+                foreach (var p in s.Profiles) { p.Preset = Ren(p.Preset); p.HeadphonePreset = Ren(p.HeadphonePreset); }
+                foreach (var e in s.Eq.Values) e.Preset = Ren(e.Preset) ?? e.Preset;
+                if (s.ProfileBackup != null) s.ProfileBackup.Preset = Ren(s.ProfileBackup.Preset) ?? s.ProfileBackup.Preset;
                 return s;
             }
         }
@@ -109,6 +120,6 @@ public static class Settings
         Name = "Call of Duty",
         // cod = Black Ops 6 / Warzone / CoD HQ; the rest are older stand-alone games
         Programs = { "cod", "cod22-cod", "cod23-cod", "ModernWarfare", "BlackOpsColdWar", "Vanguard", "BlackOps4", "BlackOps3", "iw7_ship", "s2_mp64_ship" },
-        Preset = "MW4 · TV & speakers", HeadphonePreset = "MW4 · Headphones", NightMode = true, Enabled = false,
+        Preset = "Call of Duty · TV & speakers", HeadphonePreset = "Call of Duty · Headphones", NightMode = true, Enabled = false,
     };
 }

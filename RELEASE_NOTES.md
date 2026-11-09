@@ -7,6 +7,11 @@ Download **Cypress-Sound-Setup.exe** below and run it.
 - Auto profiles: a preset (and output) switches on while a game or player is running.
 - Mic EQ for calls and streaming.
 
+**1.0.8**
+- Switching an auto profile on now changes the EQ right away: the sliders and curve move to its tuning, and switching it off puts your own EQ back. It still also comes on by itself when its game starts. This works the same for every profile you make.
+- "Call of Duty · Headphones" and "Call of Duty · TV & speakers" are now EQ preset buttons too, just like Movie night.
+- Drop-down lists checked in every theme.
+
 **1.0.7**
 - Auto profiles have a **Test** button: hear the tuning right now without starting the game.
 - While a profile is on, a green banner says so and the curve shows the tuning that's actually playing.

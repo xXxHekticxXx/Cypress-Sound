@@ -58,6 +58,17 @@ jobs:
           New-Item -ItemType Directory -Force shots | Out-Null
           $bmp.Save("shots/main.png")
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          # every colour theme with a drop-down list open, to check the text can be read
+          foreach ($t in @("Midnight","Graphite","Light","Cypress green")) {
+            $q = Start-Process publish/CypressSound.exe -ArgumentList "--demo","--theme","`"$t`"","--open-dropdown" -PassThru
+            Start-Sleep -Seconds 10
+            $bmp2 = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            $g2 = [System.Drawing.Graphics]::FromImage($bmp2)
+            $g2.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp2.Save("shots/theme-$($t.Replace(' ','-')).png")
+            Stop-Process -Id $q.Id -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+          }
           $log = Join-Path $env:APPDATA "Cypress Works\Cypress Sound\log.txt"
           if (Test-Path $log) { Get-Content $log }
 
@@ -69,10 +80,13 @@ jobs:
           git config user.name "github-actions"; git config user.email "github-actions@users.noreply.github.com"
           Copy-Item shots/main.png $env:RUNNER_TEMP/main.png
           if (Test-Path shots/panel.png) { Copy-Item shots/panel.png $env:RUNNER_TEMP/panel.png }
+          New-Item -ItemType Directory -Force $env:RUNNER_TEMP/th | Out-Null
+          Get-ChildItem shots -Filter "theme-*.png" | Copy-Item -Destination $env:RUNNER_TEMP/th
           git checkout --orphan screenshots
           git rm -rf --cached . | Out-Null
           Copy-Item $env:RUNNER_TEMP/main.png main.png
           if (Test-Path $env:RUNNER_TEMP/panel.png) { Copy-Item $env:RUNNER_TEMP/panel.png panel.png; git add panel.png }
+          Get-ChildItem $env:RUNNER_TEMP/th -Filter "*.png" | ForEach-Object { Copy-Item $_.FullName $_.Name; git add $_.Name }
           git add main.png
           git commit -m "Screenshot of ${{ github.sha }}"
           git push -f origin screenshots

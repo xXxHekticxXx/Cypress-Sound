@@ -16,14 +16,53 @@ public sealed class AudioController : IDisposable
     public string? DefaultOutput { get; private set; }
     public string? DefaultInput { get; private set; }
     public AutoProfile? ActiveProfile { get; private set; }
-    /// <summary>A profile switched on by hand with "Test" (no game needed), so you can hear it straight away.</summary>
+    /// <summary>A profile switched on by hand from its switch (no game needed). It stays on until switched off.</summary>
     public AutoProfile? Testing { get; private set; }
     AutoProfile? _watched;
 
     public void TestProfile(AutoProfile? p)
     {
         Testing = p;
+        Settings.Current.ManualProfile = p?.Name;
         OnProfile(p ?? _watched);
+    }
+
+    // The profile's EQ is written into the real EQ of the output (so the sliders move); the EQ that was there
+    // before is kept in the settings (so it survives a restart) and put back when the profile ends.
+    string? _profDev { get => Settings.Current.ProfileBackupDevice; set => Settings.Current.ProfileBackupDevice = value; }
+    DeviceEq? _savedEq { get => Settings.Current.ProfileBackup; set => Settings.Current.ProfileBackup = value; }
+    /// <summary>Goes up whenever a profile changes the EQ, so the window knows to redraw the sliders.</summary>
+    public int ProfileStamp { get; private set; }
+
+    void ApplyProfile(AutoProfile p)
+    {
+        var id = p.OutputId ?? DefaultOutput;
+        if (id == null || id == _profDev) return;
+        RestoreProfile();
+        var d = Outputs.FirstOrDefault(o => o.Id == id);
+        var name = d?.Icon == "🎧" && p.HeadphonePreset != null ? p.HeadphonePreset : p.Preset;
+        var preset = name == null ? null : Settings.ProfilePresets().FirstOrDefault(x => x.Name == name);
+        if (preset == null && !p.NightMode) return;
+        var eq = Settings.EqFor(id);
+        _savedEq = eq.Clone();
+        _profDev = id;
+        if (preset != null)
+        {
+            eq.Bands = (double[])preset.Bands.Clone();
+            eq.Preset = preset.Name;
+            eq.Edited = false;
+            eq.BassBoost = preset.BassBoost;
+        }
+        eq.NightMode = p.NightMode || preset?.NightMode == true;
+        eq.Enabled = true;
+        ProfileStamp++;
+    }
+
+    void RestoreProfile()
+    {
+        if (_profDev != null && _savedEq != null) { Settings.Current.Eq[_profDev] = _savedEq; ProfileStamp++; }
+        _profDev = null;
+        _savedEq = null;
     }
 
     /// <summary>The output that is playing right now.</summary>
@@ -45,6 +84,16 @@ public sealed class AudioController : IDisposable
         Devices.Changed += () => _ui.BeginInvoke(Refresh);
         _profiles.Changed += p => _ui.BeginInvoke(() => { _watched = p; if (Testing == null) OnProfile(p); });
         Refresh();
+        // a profile left switched on last time comes back on
+        var manual = Settings.Current.Profiles.FirstOrDefault(p => p.Name == Settings.Current.ManualProfile);
+        if (manual != null)
+        {
+            // re-apply on top of the EQ you had before (the saved copy), not on top of last session's tuning
+            RestoreProfile();
+            Testing = manual;
+            OnProfile(manual);
+        }
+        else RestoreProfile(); // the app closed while a game profile was on: put your EQ back
     }
 
     /// <summary>--demo: made-up devices, for screenshots on machines without sound hardware.</summary>
@@ -79,6 +128,8 @@ public sealed class AudioController : IDisposable
             DefaultInput = Devices.DefaultId(DataFlow.Capture);
         }
         foreach (var d in Outputs.Concat(Inputs)) Settings.EqFor(d.Id).Channels = d.Channels;
+        // the output changed while a profile is on: its tuning moves to the new output (headphones get theirs)
+        if (ActiveProfile is { OutputId: null } ap && _profDev != null && _profDev != DefaultOutput) ApplyProfile(ap);
         // hotkeys: give new outputs the next free number
         foreach (var d in Outputs)
         {
@@ -151,18 +202,8 @@ public sealed class AudioController : IDisposable
     /// <summary>The EQ actually used for a device right now (an auto profile can override the preset).</summary>
     public DeviceEq EffectiveEq(AudioDevice d)
     {
-        var eq = Settings.EqFor(d.Id);
-        var p = ActiveProfile;
-        if (p == null || d.Flow != DataFlow.Render) return eq;
-        var target = p.OutputId ?? DefaultOutput;
-        if (target != d.Id) return eq;
-        var e = eq.Clone();
-        // headphones can get their own tuning
-        var name = d.Icon == "🎧" && p.HeadphonePreset != null ? p.HeadphonePreset : p.Preset;
-        var preset = name == null ? null : Settings.ProfilePresets().FirstOrDefault(x => x.Name == name);
-        if (preset != null) { e.Bands = (double[])preset.Bands.Clone(); e.Preset = preset.Name; e.Enabled = true; }
-        if (p.NightMode) e.NightMode = true;
-        return e;
+        // a running profile writes its tuning straight into the device's EQ, so this is just the EQ
+        return Settings.EqFor(d.Id);
     }
 
     void WriteNow()
@@ -186,18 +227,21 @@ public sealed class AudioController : IDisposable
     {
         if (p != null)
         {
+            if (ActiveProfile != null && ActiveProfile != p) RestoreProfile();
             ActiveProfile = p;
             if (p.OutputId != null && p.OutputId != DefaultOutput && Outputs.Any(o => o.Id == p.OutputId))
             {
                 _outputBeforeProfile = DefaultOutput;
                 SwitchTo(p.OutputId);
             }
+            ApplyProfile(p);
             Notice?.Invoke($"Profile: {p.Name}");
         }
         else
         {
             var was = ActiveProfile;
             ActiveProfile = null;
+            RestoreProfile();
             if (_outputBeforeProfile != null && Outputs.Any(o => o.Id == _outputBeforeProfile)) SwitchTo(_outputBeforeProfile);
             _outputBeforeProfile = null;
             if (was != null) Notice?.Invoke($"{was.Name} closed: back to your EQ");
@@ -208,6 +252,7 @@ public sealed class AudioController : IDisposable
     public void Dispose()
     {
         _profiles.Dispose();
+        RestoreProfile(); // never leave a profile's tuning saved as your own EQ
         WriteNow();
         Devices.Dispose();
     }

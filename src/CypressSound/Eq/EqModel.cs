@@ -83,10 +83,10 @@ public static class Presets
         // plus the usual footstep advice: cut sub-bass rumble that masks steps, and even out loud vs quiet sounds
         // (night mode = the "Loudness Equalization" the guides tell PC players to turn on).
         // Headphones: sit right at the ear, so the sub-bass cut is strong and the treble lift is moderate (no fatigue).
-        Only(P("MW4 · Headphones", -6, -4, -1, 3, 0, -2, -1, 3, 3, 1, night: true)),
+        P("Call of Duty · Headphones", -6, -4, -1, 3, 0, -2, -1, 3, 3, 1, night: true),
         // TV / speakers through the PC: the room smears detail and small speakers can't play deep bass, so the lowest
         // band is cut harder (frees headroom), low-mid boxiness is trimmed and the 4-8 kHz detail is lifted a bit more.
-        Only(P("MW4 · TV & speakers", -8, -3, 1, 3, -1, -2, 0, 4, 4, 1, night: true)),
+        P("Call of Duty · TV & speakers", -8, -3, 1, 3, -1, -2, 0, 4, 4, 1, night: true),
         // kept so older settings that name it still work
         Only(P("Call of Duty", -6, -4, 0, -2, -2, 1, 4, 6, 3, -1, night: true)),
         P("Movie night", 6, 5, 3, 0, -1, 1, 3, 2, 0, -2, night: true),
