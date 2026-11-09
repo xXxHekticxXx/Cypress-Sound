@@ -29,8 +29,7 @@ public static class Theme
         void Set(string key, string hex)
         {
             var c = (Color)ColorConverter.ConvertFromString(hex);
-            if (r[key] is SolidColorBrush b && !b.IsFrozen) b.Color = c;
-            else r[key] = new SolidColorBrush(c);
+            r[key] = new SolidColorBrush(c); // everything in XAML points at these with DynamicResource, so it all updates
         }
         Set("Bg", p.Bg); Set("Bg2", p.Bg2); Set("Panel", p.Panel); Set("Line", p.Line);
         Set("Ink", p.Ink); Set("Muted", p.Muted);
