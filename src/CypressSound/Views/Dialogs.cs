@@ -22,6 +22,7 @@ abstract class DarkDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = Ui.B("Bg");
         ShowInTaskbar = false;
+        Theme.TitleBar(this);
         Content = Body;
     }
 
@@ -143,6 +144,25 @@ sealed class SettingsWindow : DarkDialog
         Body.Children.Add(Ui.Switch("Closing the window keeps it running in the tray", s.CloseToTray, on => { s.CloseToTray = on; a.EqChanged(); }));
         Body.Children.Add(Ui.Switch("Hotkeys: Ctrl+Alt+1-9 outputs, Ctrl+Alt+0 next, Ctrl+Alt+E EQ", s.GlobalHotkeys, on => { s.GlobalHotkeys = on; App.Hotkeys?.Enable(on); a.EqChanged(); }));
         Body.Children.Add(Ui.Switch("Check for updates", s.CheckUpdates, on => { s.CheckUpdates = on; a.EqChanged(); }));
+
+        Body.Children.Add(Label("LOOK"));
+        var theme = new ComboBox();
+        foreach (var t in Theme.All) theme.Items.Add(t.Name);
+        theme.SelectedItem = Theme.Current.Name;
+        var restart = Ui.Btn("Restart to finish applying", () => { Settings.Save(); ((App)Application.Current).Restart(); });
+        restart.HorizontalAlignment = HorizontalAlignment.Left;
+        restart.Margin = new Thickness(0, 8, 0, 0);
+        restart.Visibility = Visibility.Collapsed;
+        theme.SelectionChanged += (_, _) =>
+        {
+            if (theme.SelectedItem is not string n) return;
+            s.Theme = n;
+            Theme.Apply(n);
+            a.EqChanged();
+            restart.Visibility = Visibility.Visible;
+        };
+        Body.Children.Add(theme);
+        Body.Children.Add(restart);
 
         Body.Children.Add(Label("DEVICES"));
         var unhide = Ui.Btn($"Show hidden devices ({s.Hidden.Count})", () => { s.Hidden.Clear(); a.Refresh(); Close(); });

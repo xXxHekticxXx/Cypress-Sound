@@ -27,6 +27,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Theme.TitleBar(this);
+        SideCol.Width = new GridLength(Math.Clamp(Settings.Current.SidebarWidth, 220, 640));
+        SideSplit.DragCompleted += (_, _) => { Settings.Current.SidebarWidth = SideCol.ActualWidth; A.EqChanged(); };
         VersionText.Text = "v" + Updater.Current.ToString(3);
         SettingsBtn.Click += (_, _) => new SettingsWindow { Owner = this }.ShowDialog();
         AddProfileBtn.Click += (_, _) => EditProfile(null);

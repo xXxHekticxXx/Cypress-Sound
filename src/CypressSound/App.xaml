@@ -13,6 +13,8 @@
     <SolidColorBrush x:Key="GreenDark" Color="#1F5C36"/>
     <SolidColorBrush x:Key="Warn" Color="#E0A33D"/>
     <SolidColorBrush x:Key="Red" Color="#D0453B"/>
+    <SolidColorBrush x:Key="Track" Color="#2B313C"/>
+    <SolidColorBrush x:Key="Hover" Color="#1D222B"/>
 
     <Style TargetType="TextBlock">
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>
@@ -75,7 +77,7 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="b" Property="Background" Value="{StaticResource Ink}"/>
-                <Setter Property="Foreground" Value="#111"/>
+                <Setter Property="Foreground" Value="{StaticResource Bg}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
               </Trigger>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Green}"/></Trigger>
@@ -93,7 +95,7 @@
         <Setter.Value>
           <ControlTemplate TargetType="CheckBox">
             <StackPanel Orientation="Horizontal" Background="Transparent">
-              <Border x:Name="t" Width="52" Height="28" CornerRadius="14" Background="#3A423B">
+              <Border x:Name="t" Width="52" Height="28" CornerRadius="14" Background="{StaticResource Track}">
                 <Ellipse x:Name="k" Width="20" Height="20" Fill="White" HorizontalAlignment="Left" Margin="4,0"/>
               </Border>
               <ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}"/>
@@ -124,7 +126,7 @@
           <ControlTemplate TargetType="Slider">
             <Grid>
               <Border Width="6" CornerRadius="3" Background="{StaticResource Line}" HorizontalAlignment="Center"/>
-              <Border Height="2" Background="#3A423B" VerticalAlignment="Center" Margin="6,0"/>
+              <Border Height="2" Background="{StaticResource Track}" VerticalAlignment="Center" Margin="6,0"/>
               <Track x:Name="PART_Track" IsDirectionReversed="False">
                 <Track.Thumb>
                   <Thumb Width="26" Height="26" Cursor="SizeNS">
@@ -186,24 +188,91 @@
       <Setter Property="Padding" Value="8,6"/>
       <Setter Property="FontSize" Value="14"/>
     </Style>
-    <!-- drop-downs: black text on the light box and the light list (the app-wide light text style is overridden inside) -->
+    <!-- drop-downs: drawn in the theme colours (Windows' own look put light text on a light list) -->
+    <Style x:Key="ComboToggle" TargetType="ToggleButton">
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="b" Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8">
+              <Path x:Name="arrow" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" Data="M0,0 L5,5 L10,0" Stroke="{StaticResource Muted}" StrokeThickness="1.6"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Green}"/></Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Green}"/>
+                <Setter TargetName="arrow" Property="Data" Value="M0,5 L5,0 L10,5"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style TargetType="ComboBox">
       <Setter Property="FontSize" Value="13"/>
-      <Setter Property="MinHeight" Value="32"/>
-      <Setter Property="Foreground" Value="Black"/>
-      <Style.Resources>
-        <Style TargetType="TextBlock">
-          <Setter Property="Foreground" Value="Black"/>
-        </Style>
-      </Style.Resources>
+      <Setter Property="MinHeight" Value="34"/>
+      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton Style="{StaticResource ComboToggle}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+              <ContentPresenter IsHitTestVisible="False" Margin="12,0,30,0" VerticalAlignment="Center" HorizontalAlignment="Left"
+                                Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                TextElement.Foreground="{StaticResource Ink}">
+                <ContentPresenter.Resources>
+                  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="TextTrimming" Value="CharacterEllipsis"/></Style>
+                </ContentPresenter.Resources>
+              </ContentPresenter>
+              <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="8" Margin="0,4,0,0" Padding="4"
+                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                  <ScrollViewer SnapsToDevicePixels="True">
+                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="ComboBoxItem">
-      <Setter Property="Foreground" Value="Black"/>
-      <Style.Resources>
-        <Style TargetType="TextBlock">
-          <Setter Property="Foreground" Value="Black"/>
-        </Style>
-      </Style.Resources>
+      <Setter Property="Foreground" Value="{StaticResource Ink}"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="10,7">
+              <ContentPresenter TextElement.Foreground="{StaticResource Ink}">
+                <ContentPresenter.Resources>
+                  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{StaticResource Ink}"/></Style>
+                </ContentPresenter.Resources>
+              </ContentPresenter>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="b" Property="Background" Value="{StaticResource Hover}"/></Trigger>
+              <Trigger Property="IsSelected" Value="True"><Setter TargetName="b" Property="Background" Value="{StaticResource GreenDark}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style TargetType="GridSplitter">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="GridSplitter">
+            <Border x:Name="b" Background="Transparent"><Border x:Name="l" Width="1" Background="{StaticResource Line}" HorizontalAlignment="Center"/></Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="l" Property="Width" Value="3"/><Setter TargetName="l" Property="Background" Value="{StaticResource Green}"/></Trigger>
+              <Trigger Property="IsDragging" Value="True"><Setter TargetName="l" Property="Width" Value="3"/><Setter TargetName="l" Property="Background" Value="{StaticResource Green}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
     <Style TargetType="CheckBox">
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>

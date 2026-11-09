@@ -41,6 +41,7 @@ public partial class App : Application
             ex.Handled = true;
         };
 
+        Theme.Apply(Settings.Current.Theme);
         Audio = new AudioController();
         Hotkeys = new Hotkeys();
         Hotkeys.Output += n => Audio.SwitchToHotkey(n);
@@ -127,6 +128,14 @@ public partial class App : Application
             if (PendingUpdate != null) Audio.EqChanged(); // refresh the UI so the banner shows
         }
         catch { /* offline: try again next start */ }
+    }
+
+    /// <summary>Close and open again (used after changing the colour theme so every part picks it up).</summary>
+    public void Restart()
+    {
+        try { _single?.ReleaseMutex(); _single?.Dispose(); _single = null; } catch { }
+        try { Process.Start(new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true }); } catch { }
+        Quit();
     }
 
     public void Quit()

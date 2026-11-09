@@ -33,6 +33,8 @@ public sealed class AppSettings
     public string? LastSelected { get; set; }
     public bool SoundBarOpen { get; set; }
     public bool CodProfileAdded { get; set; }
+    public double SidebarWidth { get; set; } = 320;
+    public string Theme { get; set; } = "Midnight";
 }
 
 public static class Settings

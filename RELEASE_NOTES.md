@@ -7,6 +7,12 @@ Download **Cypress-Sound-Setup.exe** below and run it.
 - Auto profiles: a preset (and output) switches on while a game or player is running.
 - Mic EQ for calls and streaming.
 
+**1.0.5**
+- New modern look: "Midnight" theme by default, plus Graphite, Light and the original Cypress green (Settings → Look).
+- Drop-down menus redrawn to match the theme, so every list is readable.
+- Drag the edge of the left list to make it wider and read full device names (it remembers the width).
+- Title bar matches the theme.
+
 **1.0.4**
 - Call of Duty is now an auto profile (under Auto profiles, off until you switch it on) instead of an EQ preset. When it's on, it loads the Call of Duty tuning by itself whenever the game is running and puts your EQ back when you close it.
 

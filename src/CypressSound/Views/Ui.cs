@@ -34,7 +34,7 @@ static class Ui
         // The app-wide TextBlock style would keep the text light, so color it here (dark text on the light "selected" chip).
         var t = new TextBlock { Text = s, FontSize = 13 };
         var b = new ToggleButton { Content = t, IsChecked = on, Style = S("Chip") };
-        void Paint() { t.Foreground = b.IsChecked == true ? new SolidColorBrush(Color.FromRgb(0x11, 0x11, 0x11)) : B("Ink"); t.FontWeight = b.IsChecked == true ? FontWeights.SemiBold : FontWeights.Normal; }
+        void Paint() { t.Foreground = b.IsChecked == true ? B("Bg") : B("Ink"); t.FontWeight = b.IsChecked == true ? FontWeights.SemiBold : FontWeights.Normal; }
         Paint();
         b.Checked += (_, _) => Paint();
         b.Unchecked += (_, _) => Paint();

@@ -16,7 +16,7 @@
     <Product>Cypress Sound</Product>
     <Company>Cypress Works</Company>
     <Copyright>Cypress Works</Copyright>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
