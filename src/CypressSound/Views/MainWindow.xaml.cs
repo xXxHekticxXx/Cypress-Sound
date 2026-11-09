@@ -197,6 +197,14 @@ public partial class MainWindow : Window
             edit.Click += (_, _) => EditProfile(prof);
             DockPanel.SetDock(edit, Dock.Right);
             dp.Children.Add(edit);
+            // hear it now without starting the game
+            var testing = A.Testing == p;
+            var test = new Button { Content = testing ? "Stop" : "Test", Padding = new Thickness(10, 4, 10, 4), MinHeight = 28, Margin = new Thickness(6, 0, 0, 0),
+                ToolTip = "Turn this profile on right now so you can hear it (no game needed). Press Stop to go back." };
+            if (testing) test.Style = Ui.S("Primary");
+            test.Click += (_, _) => A.TestProfile(A.Testing == prof ? null : prof);
+            DockPanel.SetDock(test, Dock.Right);
+            dp.Children.Add(test);
             var sw = Ui.Switch("", p.Enabled, on => { prof.Enabled = on; A.EqChanged(); });
             sw.Margin = new Thickness(0);
             DockPanel.SetDock(sw, Dock.Left);
@@ -205,12 +213,32 @@ public partial class MainWindow : Window
             names.Children.Add(new TextBlock { Text = p.Name, TextTrimming = TextTrimming.CharacterEllipsis });
             names.Children.Add(new TextBlock
             {
-                Text = active ? "Running now" : string.Join(", ", p.Programs) + (p.HeadphonePreset != null ? " → speakers + 🎧 tunings" : p.Preset != null ? $" → {p.Preset}" : ""),
-                FontSize = 11, Foreground = Ui.B(active ? "Green" : "Muted"), TextTrimming = TextTrimming.CharacterEllipsis,
+                Text = ProfileStatus(p, active),
+                FontSize = 11, Foreground = Ui.B(active ? "Green" : ProfileDeaf(p) ? "Warn" : "Muted"), TextTrimming = TextTrimming.CharacterEllipsis,
+                ToolTip = string.Join(", ", p.Programs),
             });
             dp.Children.Add(names);
             ProfileList.Children.Add(dp);
         }
+    }
+
+    /// <summary>True when the output this profile would change can't be EQ'd yet, so turning it on would do nothing.</summary>
+    bool ProfileDeaf(AutoProfile p)
+    {
+        var target = A.Outputs.FirstOrDefault(o => o.Id == (p.OutputId ?? A.DefaultOutput));
+        return p.Enabled && ApoConfig.Installed && target != null && !ApoConfig.EnabledFor(target);
+    }
+
+    string ProfileStatus(AutoProfile p, bool active)
+    {
+        if (active) return A.Testing == p ? "Testing: on now" : "Running now";
+        if (ProfileDeaf(p))
+        {
+            var target = A.Outputs.First(o => o.Id == (p.OutputId ?? A.DefaultOutput));
+            return $"⚠ Can't be heard: EQ isn't on for {A.NameOf(target)} (see the yellow banner)";
+        }
+        if (p.Enabled) return "On · starts by itself when " + (p.Programs.FirstOrDefault() ?? "the program") + " opens";
+        return string.Join(", ", p.Programs) + (p.HeadphonePreset != null ? " → speakers + 🎧 tunings" : p.Preset != null ? $" → {p.Preset}" : "");
     }
 
     void EditProfile(AutoProfile? p)
@@ -257,6 +285,13 @@ public partial class MainWindow : Window
                 {
                     if (Ui.RunAsAdmin(Environment.ProcessPath!, "--setup-apo-config")) A.EqChanged();
                 }, primary: true)));
+        }
+        if (A.ActiveProfile is { } ap && Device is { } dv && dv.Flow == DataFlow.Render && (ap.OutputId ?? A.DefaultOutput) == dv.Id)
+        {
+            var used = A.EffectiveEq(dv).Preset;
+            var stop = A.Testing != null ? new[] { Ui.Btn("Stop test", () => A.TestProfile(null), primary: true) } : Array.Empty<Button>();
+            Banners.Children.Add(Ui.Banner($"🎮 {ap.Name} is on for this output: using \"{used}\". The curve shows it; your own sliders come back when it ends." +
+                (ApoConfig.EnabledFor(dv) ? "" : " You won't hear it until the EQ is switched on for this device (below)."), "Green", stop));
         }
         if (Device is { } d && !ApoConfig.EnabledFor(d))
         {
@@ -689,7 +724,8 @@ public partial class MainWindow : Window
     {
         _preText?.Invoke();
         Curve.Children.Clear();
-        var eq = Eq;
+        // draw what's actually playing (an auto profile's tuning while it runs)
+        var eq = Device is { } dev && dev.Flow == DataFlow.Render ? A.EffectiveEq(dev) : Eq;
         double w = Curve.ActualWidth, h = Curve.ActualHeight;
         if (eq == null || w < 10) return;
         double X(double f) => w * Math.Log(f / 20) / Math.Log(1000);

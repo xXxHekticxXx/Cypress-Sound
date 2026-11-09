@@ -7,6 +7,11 @@ Download **Cypress-Sound-Setup.exe** below and run it.
 - Auto profiles: a preset (and output) switches on while a game or player is running.
 - Mic EQ for calls and streaming.
 
+**1.0.7**
+- Auto profiles have a **Test** button: hear the tuning right now without starting the game.
+- While a profile is on, a green banner says so and the curve shows the tuning that's actually playing.
+- A profile now warns you when it can't be heard because the EQ isn't switched on for that output yet.
+
 **1.0.6**
 - Call of Duty auto profile now has two Modern Warfare 4 tunings: one for headphones and one for TV / speakers. It picks the right one by itself for whichever output you're using.
 

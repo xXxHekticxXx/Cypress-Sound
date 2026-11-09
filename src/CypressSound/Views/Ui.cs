@@ -72,7 +72,7 @@ static class Ui
         DockPanel.SetDock(sp, Dock.Right);
         dp.Children.Add(sp);
         dp.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Foreground = B("Ink") });
-        return new Border { BorderBrush = B(brush), BorderThickness = new Thickness(1), Background = new SolidColorBrush(Color.FromArgb(40, 0xE0, 0xA3, 0x3D)), CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 10), Child = dp };
+        return new Border { BorderBrush = B(brush), BorderThickness = new Thickness(1), Background = new SolidColorBrush(B(brush) is SolidColorBrush sb ? Color.FromArgb(40, sb.Color.R, sb.Color.G, sb.Color.B) : Color.FromArgb(40, 0xE0, 0xA3, 0x3D)), CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 10), Child = dp };
     }
 
     public static void Open(string target)

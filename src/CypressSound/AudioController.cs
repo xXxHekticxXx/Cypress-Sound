@@ -16,6 +16,18 @@ public sealed class AudioController : IDisposable
     public string? DefaultOutput { get; private set; }
     public string? DefaultInput { get; private set; }
     public AutoProfile? ActiveProfile { get; private set; }
+    /// <summary>A profile switched on by hand with "Test" (no game needed), so you can hear it straight away.</summary>
+    public AutoProfile? Testing { get; private set; }
+    AutoProfile? _watched;
+
+    public void TestProfile(AutoProfile? p)
+    {
+        Testing = p;
+        OnProfile(p ?? _watched);
+    }
+
+    /// <summary>The output that is playing right now.</summary>
+    public AudioDevice? InUse => Outputs.FirstOrDefault(o => o.Id == DefaultOutput);
     public string? LastError { get; private set; }
     public event Action? Changed;
     public event Action<string>? Notice; // short on-screen message (e.g. after a hotkey switch)
@@ -31,7 +43,7 @@ public sealed class AudioController : IDisposable
         _writeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _writeTimer.Tick += (_, _) => { _writeTimer.Stop(); WriteNow(); };
         Devices.Changed += () => _ui.BeginInvoke(Refresh);
-        _profiles.Changed += p => _ui.BeginInvoke(() => OnProfile(p));
+        _profiles.Changed += p => _ui.BeginInvoke(() => { _watched = p; if (Testing == null) OnProfile(p); });
         Refresh();
     }
 
