@@ -186,9 +186,24 @@
       <Setter Property="Padding" Value="8,6"/>
       <Setter Property="FontSize" Value="14"/>
     </Style>
+    <!-- drop-downs: black text on the light box and the light list (the app-wide light text style is overridden inside) -->
     <Style TargetType="ComboBox">
       <Setter Property="FontSize" Value="13"/>
       <Setter Property="MinHeight" Value="32"/>
+      <Setter Property="Foreground" Value="Black"/>
+      <Style.Resources>
+        <Style TargetType="TextBlock">
+          <Setter Property="Foreground" Value="Black"/>
+        </Style>
+      </Style.Resources>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="Black"/>
+      <Style.Resources>
+        <Style TargetType="TextBlock">
+          <Setter Property="Foreground" Value="Black"/>
+        </Style>
+      </Style.Resources>
     </Style>
     <Style TargetType="CheckBox">
       <Setter Property="Foreground" Value="{StaticResource Ink}"/>

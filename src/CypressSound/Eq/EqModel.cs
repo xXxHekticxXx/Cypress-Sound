@@ -75,6 +75,10 @@ public static class Presets
         P("Bass boost", 6, 5, 4, 1, 0, 0, 0, 0, 0, 0),
         P("Voice / podcast", -6, -4, -1, 0, 1, 2, 4, 3, 1, -1),
         P("Footsteps (gaming)", -4, -3, -2, -1, 0, 2, 4, 5, 3, 0),
+        // Call of Duty: explosions and rumble pulled down, muddy low-mids cleaned up, footsteps / reloads / gear rattle
+        // (about 1-5 kHz) brought forward, a touch of air for left-right placement, harsh top end tamed.
+        // Night mode evens out loud and quiet sounds so distant steps aren't buried under gunfire.
+        P("Call of Duty", -6, -4, 0, -2, -2, 1, 4, 6, 3, -1, night: true),
         P("Movie night", 6, 5, 3, 0, -1, 1, 3, 2, 0, -2, night: true),
         P("TV speakers fix", 4, 4, 3, 1, 0, 1, 3, 3, 1, 0),
         P("Music: V-shape", 5, 4, 2, 0, -2, -2, 0, 2, 4, 5),
