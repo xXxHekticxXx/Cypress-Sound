@@ -152,7 +152,7 @@ sealed class SettingsWindow : DarkDialog
         var sel = Ui.Btn("Equalizer APO device list…", () =>
         {
             var ip = ApoConfig.InstallPath();
-            if (ip != null) Ui.RunAsAdmin(System.IO.Path.Combine(ip, "DeviceSelector.exe"), wait: false);
+            if (ip != null) Ui.RunApoTool(ip, "DeviceSelector.exe");
         });
         sel.HorizontalAlignment = HorizontalAlignment.Left;
         sel.IsEnabled = ApoConfig.Installed;

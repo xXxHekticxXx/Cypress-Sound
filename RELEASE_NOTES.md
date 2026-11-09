@@ -7,6 +7,9 @@ Download **Cypress-Sound-Setup.exe** below and run it.
 - Auto profiles: a preset (and output) switches on while a game or player is running.
 - Mic EQ for calls and streaming.
 
+**1.0.3**
+- Fixed "no Qt platform plugin could be initialized" when turning on the EQ for a device.
+
 **1.0.2**
 - Drop-down menus now use black text so they're readable.
 - New "Call of Duty" preset: quieter explosions, louder footsteps and reloads, night mode on.

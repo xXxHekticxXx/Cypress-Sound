@@ -266,7 +266,7 @@ public partial class MainWindow : Window
     {
         var ip = ApoConfig.InstallPath();
         if (ip == null) return;
-        Ui.RunAsAdmin(System.IO.Path.Combine(ip, "DeviceSelector.exe"), wait: false);
+        Ui.RunApoTool(ip, "DeviceSelector.exe");
     }
 
     // ---------- EQ ----------

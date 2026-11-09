@@ -1,3 +1,4 @@
+using System.Linq;
 // Small helpers for building the UI in code.
 using System.Diagnostics;
 using System.Windows;
@@ -80,11 +81,37 @@ static class Ui
     }
 
     /// <summary>Starts a program as administrator (Windows shows its yes/no prompt). Returns false if the user said no.</summary>
+    /// <summary>Starts Equalizer APO's Device Selector. It is a Qt program: it has to start in its own folder and
+    /// find its "platforms" plugin there, or it fails with "no Qt platform plugin could be initialized"
+    /// (other Qt programs on the PC can also point it at the wrong plugin folder through QT_* variables).</summary>
+    public static bool RunApoTool(string folder, string exeName)
+    {
+        try
+        {
+            // find the Qt platform plugin wherever this version of Equalizer APO keeps it
+            var plat = System.IO.Path.Combine(folder, "platforms");
+            if (!System.IO.File.Exists(System.IO.Path.Combine(plat, "qwindows.dll")))
+            {
+                var found = System.IO.Directory.EnumerateFiles(folder, "qwindows*.dll", System.IO.SearchOption.AllDirectories).FirstOrDefault();
+                if (found != null) plat = System.IO.Path.GetDirectoryName(found)!;
+            }
+            if (!System.IO.Directory.Exists(plat))
+            {
+                System.Windows.MessageBox.Show("Equalizer APO's install is missing some of its files (the \"platforms\" folder), so its device list can't open.\n\nReinstall Equalizer APO from its website, then try again.", "Cypress Sound");
+                return false;
+            }
+            var cmd = $"/c cd /d \"{folder}\" && set QT_PLUGIN_PATH={System.IO.Path.GetDirectoryName(plat)}&& set QT_QPA_PLATFORM_PLUGIN_PATH={plat}&& set QT_QPA_PLATFORM=&& start \"\" \"{System.IO.Path.Combine(folder, exeName)}\"";
+            Process.Start(new ProcessStartInfo("cmd.exe", cmd) { UseShellExecute = true, Verb = "runas", WorkingDirectory = folder, WindowStyle = ProcessWindowStyle.Hidden });
+            return true;
+        }
+        catch { return false; }
+    }
+
     public static bool RunAsAdmin(string exe, string args = "", bool wait = true)
     {
         try
         {
-            var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true, Verb = "runas" });
+            var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = true, Verb = "runas", WorkingDirectory = System.IO.Path.GetDirectoryName(exe) ?? "" });
             if (wait) p?.WaitForExit();
             return true;
         }
