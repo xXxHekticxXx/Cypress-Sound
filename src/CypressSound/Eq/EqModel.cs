@@ -65,6 +65,8 @@ public sealed class Preset
     public bool NightMode { get; set; }
     public bool Builtin { get; set; }
     public bool ForMic { get; set; }
+    /// <summary>Only used by an auto profile, not shown with the EQ presets.</summary>
+    public bool ProfileOnly { get; set; }
 }
 
 public static class Presets
@@ -78,7 +80,7 @@ public static class Presets
         // Call of Duty: explosions and rumble pulled down, muddy low-mids cleaned up, footsteps / reloads / gear rattle
         // (about 1-5 kHz) brought forward, a touch of air for left-right placement, harsh top end tamed.
         // Night mode evens out loud and quiet sounds so distant steps aren't buried under gunfire.
-        P("Call of Duty", -6, -4, 0, -2, -2, 1, 4, 6, 3, -1, night: true),
+        Only(P("Call of Duty", -6, -4, 0, -2, -2, 1, 4, 6, 3, -1, night: true)),
         P("Movie night", 6, 5, 3, 0, -1, 1, 3, 2, 0, -2, night: true),
         P("TV speakers fix", 4, 4, 3, 1, 0, 1, 3, 3, 1, 0),
         P("Music: V-shape", 5, 4, 2, 0, -2, -2, 0, 2, 4, 5),
@@ -89,6 +91,8 @@ public static class Presets
         P("Mic: clear voice", -12, -10, -4, -1, 0, 1, 3, 3, 1, -2, mic: true),
         P("Mic: deep radio voice", -10, -3, 3, 2, 0, -1, 2, 3, 1, -3, mic: true),
     };
+
+    static Preset Only(Preset p) { p.ProfileOnly = true; return p; }
 
     static Preset P(string name, double a, double b, double c, double d, double e, double f, double g, double h, double i, double j, bool night = false, bool mic = false) =>
         new() { Name = name, Bands = new[] { a, b, c, d, e, f, g, h, i, j }, NightMode = night, Builtin = true, ForMic = mic };

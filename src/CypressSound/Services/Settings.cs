@@ -32,6 +32,7 @@ public sealed class AppSettings
     public string Mode { get; set; } = "graphic"; // graphic | parametric | headphone
     public string? LastSelected { get; set; }
     public bool SoundBarOpen { get; set; }
+    public bool CodProfileAdded { get; set; }
 }
 
 public static class Settings
@@ -46,7 +47,13 @@ public static class Settings
     {
         try
         {
-            if (File.Exists(FilePath)) return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Opts) ?? Defaults();
+            if (File.Exists(FilePath))
+            {
+                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Opts) ?? Defaults();
+                // added in 1.0.4 for people who already had settings (once, so deleting it sticks)
+                if (!s.CodProfileAdded) { if (!s.Profiles.Any(p => p.Name == "Call of Duty")) s.Profiles.Add(CodProfile()); s.CodProfileAdded = true; }
+                return s;
+            }
         }
         catch
         {
@@ -60,6 +67,8 @@ public static class Settings
         var s = new AppSettings();
         s.Profiles.Add(new AutoProfile { Name = "Diablo II", Programs = { "D2R", "Diablo II" }, Preset = "Footsteps (gaming)" });
         s.Profiles.Add(new AutoProfile { Name = "Movies", Programs = { "vlc", "Plex", "Netflix" }, Preset = "Movie night", NightMode = true, Enabled = false });
+        s.Profiles.Add(CodProfile());
+        s.CodProfileAdded = true;
         return s;
     }
 
@@ -81,6 +90,18 @@ public static class Settings
         return eq;
     }
 
+    /// <summary>Presets shown in the EQ menus (not the ones kept for auto profiles).</summary>
     public static IEnumerable<Preset> AllPresets(bool mic) =>
-        Presets.Builtin.Where(p => p.ForMic == mic || p.Name == "Flat").Concat(Current.UserPresets.Where(p => p.ForMic == mic));
+        Presets.Builtin.Where(p => (p.ForMic == mic || p.Name == "Flat") && !p.ProfileOnly).Concat(Current.UserPresets.Where(p => p.ForMic == mic));
+
+    /// <summary>Presets an auto profile can load: the normal ones plus the game tunings made just for profiles.</summary>
+    public static IEnumerable<Preset> ProfilePresets() => AllPresets(false).Concat(Presets.Builtin.Where(p => p.ProfileOnly));
+
+    static AutoProfile CodProfile() => new()
+    {
+        Name = "Call of Duty",
+        // cod = Black Ops 6 / Warzone / CoD HQ; the rest are older stand-alone games
+        Programs = { "cod", "cod22-cod", "cod23-cod", "ModernWarfare", "BlackOpsColdWar", "Vanguard", "BlackOps4", "BlackOps3", "iw7_ship", "s2_mp64_ship" },
+        Preset = "Call of Duty", NightMode = true, Enabled = false,
+    };
 }

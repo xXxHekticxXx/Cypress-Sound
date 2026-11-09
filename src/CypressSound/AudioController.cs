@@ -145,7 +145,7 @@ public sealed class AudioController : IDisposable
         var target = p.OutputId ?? DefaultOutput;
         if (target != d.Id) return eq;
         var e = eq.Clone();
-        var preset = p.Preset == null ? null : Settings.AllPresets(false).FirstOrDefault(x => x.Name == p.Preset);
+        var preset = p.Preset == null ? null : Settings.ProfilePresets().FirstOrDefault(x => x.Name == p.Preset);
         if (preset != null) { e.Bands = (double[])preset.Bands.Clone(); e.Preset = preset.Name; e.Enabled = true; }
         if (p.NightMode) e.NightMode = true;
         return e;

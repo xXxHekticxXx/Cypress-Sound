@@ -102,7 +102,7 @@ sealed class ProfileWindow : DarkDialog
         Body.Children.Add(Label("EQ PRESET"));
         var presets = new ComboBox();
         presets.Items.Add("Keep my EQ");
-        foreach (var p in Settings.AllPresets(false)) presets.Items.Add(p.Name);
+        foreach (var p in Settings.ProfilePresets()) presets.Items.Add(p.Name);
         presets.SelectedItem = Result.Preset ?? "Keep my EQ";
         if (presets.SelectedIndex < 0) presets.SelectedIndex = 0;
         Body.Children.Add(presets);
