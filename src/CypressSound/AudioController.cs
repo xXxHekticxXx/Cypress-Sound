@@ -145,7 +145,9 @@ public sealed class AudioController : IDisposable
         var target = p.OutputId ?? DefaultOutput;
         if (target != d.Id) return eq;
         var e = eq.Clone();
-        var preset = p.Preset == null ? null : Settings.ProfilePresets().FirstOrDefault(x => x.Name == p.Preset);
+        // headphones can get their own tuning
+        var name = d.Icon == "🎧" && p.HeadphonePreset != null ? p.HeadphonePreset : p.Preset;
+        var preset = name == null ? null : Settings.ProfilePresets().FirstOrDefault(x => x.Name == name);
         if (preset != null) { e.Bands = (double[])preset.Bands.Clone(); e.Preset = preset.Name; e.Enabled = true; }
         if (p.NightMode) e.NightMode = true;
         return e;

@@ -7,6 +7,9 @@ Download **Cypress-Sound-Setup.exe** below and run it.
 - Auto profiles: a preset (and output) switches on while a game or player is running.
 - Mic EQ for calls and streaming.
 
+**1.0.6**
+- Call of Duty auto profile now has two Modern Warfare 4 tunings: one for headphones and one for TV / speakers. It picks the right one by itself for whichever output you're using.
+
 **1.0.5**
 - New modern look: "Midnight" theme by default, plus Graphite, Light and the original Cypress green (Settings → Look).
 - Drop-down menus redrawn to match the theme, so every list is readable.

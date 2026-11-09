@@ -100,13 +100,21 @@ sealed class ProfileWindow : DarkDialog
         outs.SelectedItem = outs.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string?)i.Tag == Result.OutputId) ?? outs.Items[0];
         Body.Children.Add(outs);
 
-        Body.Children.Add(Label("EQ PRESET"));
+        Body.Children.Add(Label("EQ ON SPEAKERS / TV"));
         var presets = new ComboBox();
         presets.Items.Add("Keep my EQ");
         foreach (var p in Settings.ProfilePresets()) presets.Items.Add(p.Name);
         presets.SelectedItem = Result.Preset ?? "Keep my EQ";
         if (presets.SelectedIndex < 0) presets.SelectedIndex = 0;
         Body.Children.Add(presets);
+
+        Body.Children.Add(Label("EQ ON HEADPHONES 🎧"));
+        var hp = new ComboBox();
+        hp.Items.Add("Same as speakers / TV");
+        foreach (var p in Settings.ProfilePresets()) hp.Items.Add(p.Name);
+        hp.SelectedItem = Result.HeadphonePreset ?? "Same as speakers / TV";
+        if (hp.SelectedIndex < 0) hp.SelectedIndex = 0;
+        Body.Children.Add(hp);
 
         var night = new CheckBox { Content = "Night mode on while it runs", IsChecked = Result.NightMode, Margin = new Thickness(0, 12, 0, 0) };
         Body.Children.Add(night);
@@ -117,6 +125,7 @@ sealed class ProfileWindow : DarkDialog
             Result.Programs = progs.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
             Result.OutputId = (string?)((ComboBoxItem)outs.SelectedItem).Tag;
             Result.Preset = presets.SelectedIndex <= 0 ? null : (string)presets.SelectedItem;
+            Result.HeadphonePreset = hp.SelectedIndex <= 0 ? null : (string)hp.SelectedItem;
             Result.NightMode = night.IsChecked == true;
             DialogResult = true;
         }, primary: true);

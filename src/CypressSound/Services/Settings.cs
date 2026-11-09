@@ -14,6 +14,8 @@ public sealed class AutoProfile
     public string? OutputId { get; set; }
     /// <summary>Preset to load on that output while the program runs (null = leave as is).</summary>
     public string? Preset { get; set; }
+    /// <summary>Preset used instead when the output in use is headphones (null = same as Preset).</summary>
+    public string? HeadphonePreset { get; set; }
     public bool NightMode { get; set; }
 }
 
@@ -54,6 +56,9 @@ public static class Settings
                 var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Opts) ?? Defaults();
                 // added in 1.0.4 for people who already had settings (once, so deleting it sticks)
                 if (!s.CodProfileAdded) { if (!s.Profiles.Any(p => p.Name == "Call of Duty")) s.Profiles.Add(CodProfile()); s.CodProfileAdded = true; }
+                // 1.0.6: the Call of Duty profile gets separate MW4 tunings for headphones and for TV/speakers
+                foreach (var p in s.Profiles.Where(p => p.Name == "Call of Duty" && p.Preset == "Call of Duty"))
+                { p.Preset = "MW4 · TV & speakers"; p.HeadphonePreset = "MW4 · Headphones"; }
                 return s;
             }
         }
@@ -104,6 +109,6 @@ public static class Settings
         Name = "Call of Duty",
         // cod = Black Ops 6 / Warzone / CoD HQ; the rest are older stand-alone games
         Programs = { "cod", "cod22-cod", "cod23-cod", "ModernWarfare", "BlackOpsColdWar", "Vanguard", "BlackOps4", "BlackOps3", "iw7_ship", "s2_mp64_ship" },
-        Preset = "Call of Duty", NightMode = true, Enabled = false,
+        Preset = "MW4 · TV & speakers", HeadphonePreset = "MW4 · Headphones", NightMode = true, Enabled = false,
     };
 }

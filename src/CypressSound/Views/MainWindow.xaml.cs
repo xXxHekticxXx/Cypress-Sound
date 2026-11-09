@@ -205,7 +205,7 @@ public partial class MainWindow : Window
             names.Children.Add(new TextBlock { Text = p.Name, TextTrimming = TextTrimming.CharacterEllipsis });
             names.Children.Add(new TextBlock
             {
-                Text = active ? "Running now" : string.Join(", ", p.Programs) + (p.Preset != null ? $" → {p.Preset}" : ""),
+                Text = active ? "Running now" : string.Join(", ", p.Programs) + (p.HeadphonePreset != null ? " → speakers + 🎧 tunings" : p.Preset != null ? $" → {p.Preset}" : ""),
                 FontSize = 11, Foreground = Ui.B(active ? "Green" : "Muted"), TextTrimming = TextTrimming.CharacterEllipsis,
             });
             dp.Children.Add(names);
